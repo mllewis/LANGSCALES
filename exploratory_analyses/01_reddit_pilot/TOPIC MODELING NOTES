@@ -1,0 +1,5 @@
+TOPIC MODELING NOTES
+- take document term matrix
+- select number of topics (k)
+- pass to model
+- model outputs two matrices: 

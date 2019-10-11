@@ -1,0 +1,67 @@
+---
+title: Reddit community population sizes
+author: Molly Lewis 
+date: "`r Sys.Date()`"
+output: 
+  html_document:
+    toc: true
+    number_sections: false
+    theme: cerulean
+    toc_float: false
+    code_folding: hide
+---
+  
+  
+```{r setup, include = F}
+# load packages
+library(tidyverse) 
+library(knitr)
+library(here)
+library(anytime)
+
+opts_chunk$set(echo = T, message = F, warning = F, 
+               error = F, tidy = F,  cache = F, fig.height = 4)
+theme_set(theme_classic())
+
+``` 
+
+```{r}
+
+POPSIZE_PATH <-  here("exploratory_analyses/01_reddit_pilot/data/subreddits_basic.csv")
+popsize <- read_csv(POPSIZE_PATH,  col_names = c("id", "reddit_id", "creation_time", "subreddit", "num_subscribers")) 
+
+popsize_tidy <- popsize %>%
+  mutate(num_subscribers = as.numeric(num_subscribers),
+         creation_time = anytime(creation_time),
+         subscriber_num_bin = cut(num_subscribers, 
+                                  breaks = c(0,10,100,1000, 10000, 100000, 1000000, 10000000, 100000000))) %>%
+  filter(!is.na(num_subscribers),
+         num_subscribers > 0)  
+```
+
+
+There are `r nrow(popsize_tidy)` communities with at least 1 subscriber; `r filter(popsize_tidy, num_subscribers >= 100) %>% nrow()` communities with at least subscribers.
+
+Number of subreddits by size:
+```{r}
+ggplot(popsize_tidy, aes(num_subscribers)) +
+  geom_histogram() +
+  scale_x_log10(breaks = c(1,10,100,1000, 10000, 100000, 1000000, 10000000 )) +
+  scale_y_log10() +
+  xlab("Number of subscribers") +
+  ylab("Number of subreddits")
+
+ popsize_tidy %>%
+  count(subscriber_num_bin) %>%
+  kable()
+```
+ 
+Sample subreddits by size:
+```{r}
+ popsize_tidy %>%
+   group_by(subscriber_num_bin) %>%
+   select(subscriber_num_bin, num_subscribers, subreddit, creation_time) %>%
+   sample_n(5) %>%
+   kable()
+
+```

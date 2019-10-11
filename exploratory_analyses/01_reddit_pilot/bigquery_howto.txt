@@ -1,0 +1,19 @@
+create project on google cloud and enable bigquery api
+GO TO: https://console.cloud.google.com/bigquery?project=langscale
+
+Make query: 
+	SELECT *
+	FROM [fh-bigquery:reddit_comments.all] 
+	WHERE subreddit = 'TheRedPill' AND created_utc > 1504224000 # september 1 2017
+
+* this is legacy code
+More -> Query Settings -> Set destination table
+
+Then, click on table (on left) and go to Export -> Export to GCS
+
+go to https://console.cloud.google.com/storage/browser?_ga=2.10714292.-101777288.1569357172
+select project
+download file
+add .gz extention, unzip -> csv file
+
+

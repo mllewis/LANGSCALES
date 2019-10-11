@@ -1,0 +1,102 @@
+---
+title: Reddit Pilot - Lexical items 
+author: Molly Lewis 
+date: "`r Sys.Date()`"
+output: 
+  html_document:
+    toc: true
+    number_sections: false
+    theme: cerulean
+    toc_float: false
+    code_folding: hide
+---
+  
+  
+```{r setup, include = F}
+# load packages
+library(tidyverse) 
+library(knitr)
+library(here)
+library(anytime)
+library(tidytext)
+
+opts_chunk$set(echo = T, message = F, warning = F, 
+               error = F, tidy = F,  cache = T, fig.height = 4)
+theme_set(theme_void())
+source(here("exploratory_analyses/01_reddit_pilot/scripts/make_corr_plot.R"))
+
+
+``` 
+
+
+```{r}
+PGH_DATA_PATH <- here("exploratory_analyses/01_reddit_pilot/data/pittsburgh2years_tidy.csv")
+tidy_pgh <- read_csv(PGH_DATA_PATH, guess_max = 1000000)  %>%
+  select(-body)
+
+RP_DATA_PATH <- here("exploratory_analyses/01_reddit_pilot/data/redpill2years_tidy.csv")
+tidy_rp <- read_csv(RP_DATA_PATH, guess_max = 1000000) %>%
+  select(-body)
+
+reddit_text <- tidy_pgh %>%
+  bind_rows(tidy_rp) %>%
+  filter(author != "[deleted]")  %>%
+  select(1:8, 20) %>%
+  filter(text_type == "comment",
+         body_clean != "removed") %>%
+  mutate(text_length = nchar(body_clean)) 
+```
+
+
+```{r}
+FIRST_PRONOUNS <- c("i", "me", "my", "mine")
+
+UNNESTED_TOKENS <- here("exploratory_analyses/01_reddit_pilot/data/unnested_tokens_first.csv")
+#unnested_reddit <- reddit_text %>%
+# select(subreddit, comment_id, body_clean) %>%
+#  unnest_tokens(word, body_clean)
+
+#first_posts <- unnested_reddit %>%
+#  filter(word %in% FIRST_PRONOUNS) %>%
+#  distinct(subreddit, comment_id) %>%
+#  mutate(contains_first_pronoun = TRUE)
+
+#write_csv(first_posts,UNNESTED_TOKENS)
+
+first_posts <- data.table::fread(UNNESTED_TOKENS)
+```
+
+```{r, fig.height = 5, fig.width = 10}
+nested_authors_text <- reddit_text %>% 
+  group_by(subreddit, author) %>% 
+  mutate(birth = min(created_utc)) %>%
+  arrange(author, created_utc) %>%
+  mutate(comment_num = 1:n()) %>%
+  ungroup() %>%
+  mutate(time_since_birth = as.numeric(created_utc - birth),
+         time_since_birth_bin = cut(time_since_birth, 100)) %>%
+  select(subreddit, author, comment_num, 
+         comment_id, time_since_birth, 
+         time_since_birth_bin, created_utc, comment_id)  %>%
+  left_join(first_posts) %>%
+  mutate(contains_first_pronoun = ifelse(is.na(contains_first_pronoun),
+                                         FALSE, contains_first_pronoun))
+
+author_first_person <- nested_authors_text %>%
+  group_by(subreddit, author, time_since_birth_bin) %>%
+  summarize(contains_first_pronoun = mean(contains_first_pronoun))
+
+time_since_birth <- author_first_person %>%
+   group_by(subreddit, time_since_birth_bin) %>%
+    summarize(contains_first_pronoun = mean(contains_first_pronoun))
+
+ggplot(time_since_birth, 
+       aes(x = time_since_birth_bin, 
+           y = contains_first_pronoun, 
+           group = subreddit)) +
+  geom_point() +
+  geom_smooth() +
+  facet_wrap(~subreddit) +
+  theme_classic() +
+  theme(axis.text.x = element_text(angle = 90))
+```
