@@ -1,0 +1,53 @@
+---
+title: Similarity over time
+author: Molly Lewis 
+date: "`r Sys.Date()`"
+output: 
+  html_document:
+    toc: true
+    number_sections: false
+    theme: cerulean
+    toc_float: false
+    code_folding: hide
+---
+  
+  
+```{r setup, include = F}
+# load packages
+library(tidyverse) 
+library(knitr)
+library(here)
+library(anytime)
+library(tidytext)
+
+opts_chunk$set(echo = T, message = F, warning = F, 
+               error = F, tidy = F,  cache = T, fig.height = 4)
+theme_set(theme_void())
+source(here("exploratory_analyses/01_reddit_pilot/scripts/make_corr_plot.R"))
+``` 
+
+```{r}
+REDPILL_C_OVERTIME <- here("exploratory_analyses/01_reddit_pilot/data/post_JSD_redpill_community_overtime.csv")
+PGH_C_OVERTIME <- here("exploratory_analyses/01_reddit_pilot/data/post_JSD_pittsburgh_community_overtime.csv")
+
+pgh_overtime <- read_csv(PGH_C_OVERTIME) %>%
+  mutate(subreddit = "pgh")
+redpill_overtime <- read_csv(REDPILL_C_OVERTIME) %>%
+  mutate(subreddit = "redpill")
+
+over_community_time <- bind_rows(pgh_overtime, redpill_overtime)
+
+ggplot(over_community_time, 
+       aes(x = group, y = mean_jsd )) +
+  facet_wrap(~subreddit, scale = "free") +
+  geom_point(aes(size = n), alpha = .3) +
+  xlab("Date (in weeks)") +
+  ylab("Mean JSD") +
+  ggtitle("Post similarity over community time") +
+  geom_smooth(color = "blue" ) +
+  geom_smooth(method = "lm",color = "red" ) +
+  theme_classic(base_size = 14)
+
+
+
+```

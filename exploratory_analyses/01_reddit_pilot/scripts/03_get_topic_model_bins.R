@@ -3,6 +3,9 @@ library(here)
 library(philentropy)
 library(tidyverse)
 
+DOC_TOPIC_MODEL_PATH <- here("exploratory_analyses/01_reddit_pilot/data/topic_modeling/dt_redpill.csv")
+PAIRWISE_TOPIC_JSD <- here("exploratory_analyses/01_reddit_pilot/data/post_JSD_redpill.csv")
+
 jsd_distance_fast <- function(m) { #https://stackoverflow.com/questions/29050368/which-r-implementation-gives-the-fastest-jsd-matrix-computation
   ncol <- ncol(m)
   xlogx <- matrix(colSums(m * log(2 * m)), ncol, ncol)
@@ -19,9 +22,9 @@ jsd_distance_fast <- function(m) { #https://stackoverflow.com/questions/29050368
   sqrt(0.5 * (xlogx2 - xylogxy))
 }
 
-
-DOC_TOPIC_MODEL_PATH <- here("exploratory_analyses/01_reddit_pilot/data/topic_modeling/dt_redpill.csv")
-PAIRWISE_TOPIC_JSD <- here("exploratory_analyses/01_reddit_pilot/data/post_JSD_redpill.csv")
+P <- 1:10/sum(1:10)
+Q <- 20:29/sum(20:29)
+x <- rbind(P,Q)
 
 dt <- read_csv(DOC_TOPIC_MODEL_PATH) 
 
