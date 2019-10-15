@@ -161,7 +161,7 @@ full_jsd_social %>%
   geom_point(aes(size = log(n)), alpha = .2) +
   ylab("Mean JSD") +
   geom_smooth(method = "lm",color = "red" ) +
-  ggtitle("Self similarity as a function of social position (PGH)") +
+  ggtitle("Self similarity as a function of \nsocial position (PGH)") +
   theme_classic(base_size = 14)
 
 lm(mean_jsd ~ log(centrality) + log(n), full_jsd_social) %>%
