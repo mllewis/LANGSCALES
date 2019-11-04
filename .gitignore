@@ -9,6 +9,8 @@
 *_cache/*
 *resources/*
 exploratory_analyses/01_reddit_pilot/data/*
+exploratory_analyses/02_reddit_scaled_up/scripts/langscale-e75cff32760e.json
+exploratory_analyses/02_reddit_scaled_up/data/*
 
 
 *.log

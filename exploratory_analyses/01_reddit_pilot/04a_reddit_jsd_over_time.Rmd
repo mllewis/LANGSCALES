@@ -26,7 +26,8 @@ theme_set(theme_void())
 source(here("exploratory_analyses/01_reddit_pilot/scripts/make_corr_plot.R"))
 ``` 
 
-```{r}
+## JSD over community time
+```{r, fig.width = 10, fig.height = 5}
 REDPILL_C_OVERTIME <- here("exploratory_analyses/01_reddit_pilot/data/post_JSD_redpill_community_overtime.csv")
 PGH_C_OVERTIME <- here("exploratory_analyses/01_reddit_pilot/data/post_JSD_pittsburgh_community_overtime.csv")
 
@@ -48,6 +49,128 @@ ggplot(over_community_time,
   geom_smooth(method = "lm",color = "red" ) +
   theme_classic(base_size = 14)
 
+```
+
+## JSD over individual time{.tabset}
+
+__pink__ - mean distance of current post to all other posts in that time period in community;
+
+__green__ - distance to previous author post
+
+```{r}
+PAIRWISE_TOPIC_JSD_REDPILL <- here("exploratory_analyses/01_reddit_pilot/data/post_JSD_redpill_nth_post.csv")
+PAIRWISE_TOPIC_JSD_PGH <- here("exploratory_analyses/01_reddit_pilot/data/post_JSD_pittsburgh_nth_post.csv")
 
 
+pgh_overtime_nth <- read_csv(PAIRWISE_TOPIC_JSD_PGH) %>%
+  mutate(subreddit = "pgh")
+redpill_overtime_nth <- read_csv(PAIRWISE_TOPIC_JSD_REDPILL) %>%
+  mutate(subreddit = "redpill")
+
+over_individual_time <- bind_rows(pgh_overtime_nth, redpill_overtime_nth) %>%
+  select(author, nth_post, previous_author_JSD, current_community_JSD, subreddit) %>%
+  gather("measure", "value", -nth_post, -subreddit, -author)
+```
+
+
+###  n >= 50
+```{r,  fig.width = 10}
+over_individual_time_ms <- over_individual_time %>%
+  group_by(subreddit, nth_post, measure) %>%
+  summarize(mean_JSD = mean(value, na.rm = T),
+            n = n()) %>%
+  filter(n >= 50)
+
+over_individual_time_ms %>%
+  ggplot(aes(x = nth_post, y = mean_JSD, group = measure, color = measure)) +
+  geom_point() +
+  geom_smooth() +
+  ggtitle("Post similarity over indvidual time (with community reference)") +
+  xlab("Nth post") +
+  ylab("Mean JSD") +
+  facet_wrap(~subreddit) +
+  theme_classic()
+```
+
+###  n = all
+```{r,  fig.width = 10}
+over_individual_time_ms <- over_individual_time %>%
+  group_by(subreddit, nth_post, measure) %>%
+  summarize(mean_JSD = mean(value, na.rm = T),
+            n = n())
+
+over_individual_time_ms %>%
+  ggplot(aes(x = nth_post, y = mean_JSD, group = measure, color = measure)) +
+  geom_point() +
+  geom_smooth() +
+  ggtitle("Post similarity over indvidual time (with community reference)") +
+  xlab("Nth post") +
+  ylab("Mean JSD") +
+  facet_wrap(~subreddit) +
+  theme_classic()
+```
+
+## Invididual trajectories
+### pgh individual authors (nposts >=25) 
+```{r, fig.width = 10, fig.height = 7}
+over_individual_time %>%
+  filter(subreddit == "pgh") %>%
+  group_by(subreddit, measure) %>%
+  filter(author %in% (over_individual_time %>% count(author, measure) %>% filter(n >= 25) %>% pull(author))) %>%
+  ggplot(aes(x = nth_post, y = value, group = measure, color = measure)) +
+  geom_smooth() +
+  facet_wrap(~author ) +
+  theme_classic() +
+  theme(legend.position = "bottom")
+
+
+```
+
+### redpill individual authors (nposts >=25) 
+```{r, fig.width = 10, fig.height = 10}
+over_individual_time %>%
+  filter(subreddit == "redpill") %>%
+  group_by(subreddit, measure) %>%
+  filter(author %in% (over_individual_time %>% count(author, measure) %>% filter(n >= 25) %>% pull(author))) %>%
+  ggplot(aes(x = nth_post, y = value, group = measure, color = measure)) +
+  geom_smooth() +
+  facet_wrap(~author ) +
+  theme_classic() +
+  theme(legend.position = "bottom")
+```
+
+## community + individual JSD{.tabset}
+###  n >= 50
+```{r}
+over_individual_time %>%
+  spread(measure, value) %>%
+  mutate(community_to_poster_JSD = current_community_JSD + previous_author_JSD) %>%
+  filter(!is.na(community_to_poster_JSD)) %>%
+  group_by(subreddit, nth_post) %>%
+  summarize(community_to_poster_JSD= mean(community_to_poster_JSD),
+            n = n()) %>%
+  filter(n >= 50) %>%
+  ggplot(aes(x = nth_post, y = community_to_poster_JSD)) +
+  geom_smooth() +
+  geom_point() +
+  facet_wrap(~subreddit ) +
+  theme_classic() +
+  theme(legend.position = "bottom")
+```
+
+###  n = all
+```{r}
+over_individual_time %>%
+  spread(measure, value) %>%
+  mutate(community_to_poster_JSD = current_community_JSD + previous_author_JSD) %>%
+  filter(!is.na(community_to_poster_JSD)) %>%
+  group_by(subreddit, nth_post) %>%
+  summarize(community_to_poster_JSD= mean(community_to_poster_JSD),
+            n = n()) %>%
+  ggplot(aes(x = nth_post, y = community_to_poster_JSD)) +
+  geom_smooth() +
+  geom_point() +
+  facet_wrap(~subreddit ) +
+  theme_classic() +
+  theme(legend.position = "bottom")
 ```

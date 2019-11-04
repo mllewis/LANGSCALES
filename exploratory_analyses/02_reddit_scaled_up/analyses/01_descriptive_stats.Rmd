@@ -1,0 +1,371 @@
+---
+title: Reddit Pilot 
+author: Molly Lewis 
+date: "`r Sys.Date()`"
+output: 
+  html_document:
+    toc: true
+    number_sections: false
+    theme: cerulean
+    toc_float: false
+    code_folding: hide
+---
+  
+  
+```{r setup, include = F}
+# load packages
+library(tidyverse) 
+library(knitr)
+library(here)
+library(anytime)
+library(data.table)
+
+
+opts_chunk$set(echo = T, message = F, warning = F, 
+               error = F, tidy = F,  cache = T, fig.height = 4)
+theme_set(theme_void())
+source(here("exploratory_analyses/01_reddit_pilot/scripts/make_corr_plot.R"))
+
+
+``` 
+
+```{r}
+
+tidy_data <- here("/exploratory_analyses/02_reddit_scaled_up/data/tidy/")
+
+all_tidy <- map_df(list.files(tidy_data <- here("/exploratory_analyses/02_reddit_scaled_up/data/tidy/")
+, full.names = T), read_csv, guess_max = 1000000) 
+
+all_tidy_dt <- all_tidy %>%
+  mutate(post_length = nchar(body_clean)) %>%
+  select(-body, -body_clean, -title) %>%
+  filter(created_utc >= "2017-09-01") %>%
+  data.table()
+
+```
+## Descriptive statistics
+### Subreddit size{.tabset}
+####  Number of posts
+```{r}
+tidy_reddit_f <- all_tidy_dt %>%
+  filter(author != "[deleted]") 
+
+n_posts <- tidy_reddit_f %>%
+  filter(text_type == "post") %>%
+  count(subreddit,name =  "n_posts") %>%
+  arrange(n_posts)
+
+```
+
+#### Number of comments
+```{r}
+n_comments <- tidy_reddit_f %>%
+  filter(text_type == "comment") %>%
+  count(subreddit,  name = "n_comments") %>%
+  arrange(n_comments) 
+```
+
+####  Number of authors
+```{r}
+n_auth <- tidy_reddit_f %>%
+  distinct(subreddit, author) %>%
+  count(subreddit, name = "n_authors") %>%
+  arrange(n_authors)
+
+```
+
+####  Number of authors with at least 5 comments/posts
+```{r}
+n_auth_large <- tidy_reddit_f %>%
+  count(subreddit, author) %>%
+  filter(n >= 5) %>%
+  count(subreddit, name = "n_large_authors") %>%
+  arrange(n_large_authors) 
+
+```
+
+
+### How many comments are there in each thread?
+```{r}
+tidy_reddit_f %>%
+  count(subreddit, post_id) %>%
+  ggplot(aes(x = n)) +
+  geom_histogram(bins = 10) +
+  scale_x_log10() +
+  scale_y_log10() +
+  xlab("N comments per thread") +
+  facet_wrap(~subreddit) +
+  theme_classic()
+
+comments_per_thread <- tidy_reddit_f %>%
+  count(subreddit, post_id) %>%
+  group_by(subreddit) %>%
+  summarize(mean_comments_per_thread = mean(n))
+```
+
+###  How many comments/posts does each author make?
+```{r}
+comments_per_author <- tidy_reddit_f %>%
+  count(subreddit, author) %>%
+  count(subreddit, n)  %>%
+  group_by(subreddit) %>%
+  summarize(mean_comments_per_author= mean(nn))
+
+tidy_reddit_f %>%
+  count(subreddit, author) %>%
+  count(subreddit, n)  %>%
+  ggplot(aes(x = nn)) +
+  geom_histogram(bins = 100) +
+  scale_x_log10() +
+  scale_y_log10() +
+  xlab("N posts per author") +
+  facet_wrap(~subreddit) +
+  theme_classic()
+```
+
+###  Comment length
+```{r}
+comment_length <- tidy_reddit_f %>%
+  filter(text_type == "comment") %>%
+  group_by(subreddit) %>%
+  summarize(comment_length = mean(post_length, na.rm = T)) %>%
+  arrange(comment_length)
+
+```
+
+## All subreddit-level variables
+```{r}
+subreddit_vars <- list(n_posts, n_comments, n_auth, n_auth_large, 
+                       comments_per_thread, comments_per_author,comment_length) %>%
+  reduce(full_join) 
+#  mutate_at(c("n_posts",  "n_authors", "n_large_authors", 
+ #                      "mean_comments_per_thread", "mean_comments_per_author","comment_length"), log)
+
+make_corr_plot(subreddit_vars[,-1])
+
+#write_csv(subreddit_vars, here("/exploratory_analyses/02_reddit_scaled_up/data/misc/subreddit_meta_data.csv"))
+```
+
+## Population over time
+```{r, fig.width = 8}
+birth_death <- tidy_reddit_f %>%
+  group_by(subreddit, author) %>%
+  summarize(birth = min(created_utc),
+            death = max(created_utc),
+            n = n())
+
+birth_death_bin <- birth_death %>%
+  #filter(n > 1) %>%
+  mutate(birth_bin = lubridate::round_date(birth, "week"),
+         death_bin = lubridate::round_date(death, "week")) %>%
+  select(subreddit, birth_bin, death_bin) %>%
+  gather("event", "value", -subreddit) %>%
+  count(subreddit, event, value) %>%
+  ungroup() 
+
+total_births <- birth_death_bin %>%
+  filter(event == "birth_bin") %>%
+  group_by(subreddit)  %>%
+  mutate(n = cumsum(n),
+         event = "cum_births") %>%
+  select(subreddit, value, n, event)  
+
+
+total_deaths <- birth_death_bin %>%
+  filter(event == "death_bin") %>%
+  group_by(subreddit)  %>%
+  mutate(n = -cumsum(n),
+         event = "cum_deaths") %>%
+  select(subreddit, value, n, event)  
+
+
+pop_size <- birth_death_bin %>%
+  left_join(total_births %>% rename(total_births = n) %>% select(-event),
+            by = c("subreddit", "value")) %>%
+  left_join(total_deaths %>% rename(total_deaths = n) %>% select(-event),
+            by = c("subreddit", "value")) %>%
+  mutate(n = total_births + total_deaths,
+         event = "pop_size") %>%
+  select(subreddit, event, value, n) 
+
+pop_data <- birth_death_bin %>%
+  bind_rows(pop_size) %>%
+  bind_rows(total_births) %>%
+  bind_rows(total_deaths)  %>%
+  filter(event != "cum_births", event != "cum_deaths") %>%
+  distinct()
+
+ggplot(pop_data, aes(x = value, y = n, 
+           color = event, group = event)) +
+  geom_line() +
+  facet_wrap(~subreddit, scale = "free_y") +
+  theme_classic()
+```
+
+
+## Text analysis
+### At thread level
+
+* A thread with more comments has longer comments
+* As the community gets older there are fewer comments per thread
+* As a community gets older, comments get shorter
+* As popluation size increases, comment length increases, but num comments decreases.
+
+```{r, eval = F}
+reddit_text <- tidy_reddit_f %>%
+  filter(text_type == "comment")
+
+targ_authors <- reddit_text %>%
+  count(subreddit, author) %>% 
+  filter(n >= 50)
+
+pop_data_wide <- pop_data %>%
+  filter(event == "pop_size") 
+  
+length_over_time <- reddit_text %>%
+  group_by(subreddit, post_id) %>%
+  summarize(log_n_comments = log(n()),
+            log_mean_length = log(mean(post_length)),
+            first_comment = min(created_utc),
+            first_comment_time_num = as.numeric(first_comment)) %>%
+  mutate(first_comment_bin = lubridate::round_date(first_comment, "month")) %>%
+  left_join(pop_data %>% filter(event == "pop_size") , by = c("subreddit", "first_comment_bin" = "value"))
+
+length_over_time_tidy <- length_over_time %>%
+  select(subreddit, log_mean_length, first_comment_time_num, n) %>%
+  rename(population_size = n) %>%
+  group_by(subreddit) %>%
+  nest() %>%
+  mutate(temp = map(data, ~tidy(cor.test(.$population_size, .$log_mean_length)))) %>%
+  select(-data) %>%
+  unnest() %>%
+  left_join(n_auth_large) %>%
+  left_join(n_auth) %>%
+  ungroup() %>%
+  mutate(subreddit = fct_reorder(subreddit, n_authors))
+
+ggplot(length_over_time_tidy, aes(x = n_large_authors, y = estimate)) +
+  geom_smooth(method = "lm") +
+  scale_x_log10() +
+  geom_label(aes(label = subreddit)) +
+  geom_hline(aes(yintercept = 0), linetype = 2) +
+  geom_pointrange(aes(ymin = conf.low, ymax = conf.high), alpha =  .2) +
+  theme_classic()
+
+# n_comments_time_tidy <- length_over_time %>%
+#   select(subreddit, log_n_comments, first_comment_time_num, n) %>%
+#   rename(population_size = n) %>%
+#   group_by(subreddit) %>%
+#   nest() %>%
+#   mutate(temp = map(data, ~tidy(cor.test(.$population_size, .$log_n_comments)))) %>%
+#   select(-data) %>%
+#   unnest()  %>%
+#   left_join(n_auth_large) %>%
+#   ungroup() %>%
+#   mutate(subreddit = fct_reorder(subreddit, n_large_authors))
+# 
+# ggplot(n_comments_time_tidy, aes(x = n_large_authors, y = estimate)) +
+#   geom_smooth(method = "lm") +
+#   #scale_x_log10() +
+#   geom_hline(aes(yintercept = 0), linetype = 2) +
+# 
+#   geom_pointrange(aes(ymin = conf.low, ymax = conf.high), alpha =  .2) +
+#   theme_classic()
+
+
+
+```
+
+### At individual level
+
+Weak effect of time in community - longer in community, write less. 
+```{r, eval = F}
+nested_authors_text <- reddit_text %>% 
+  filter(author %in% targ_authors$author) %>%
+  group_by(subreddit, author) %>% 
+  mutate(birth = min(created_utc)) %>%
+  arrange(author, created_utc) %>%
+  mutate(comment_num = 1:n(),
+         time_since_birth = as.numeric(created_utc - birth)) %>%
+  ungroup() %>% 
+  select(subreddit, author, comment_num, time_since_birth, created_utc, post_length) %>%
+  group_by(subreddit, author) %>%
+  nest()
+
+score_corrs <- nested_authors_text %>%
+  mutate(corr_pearson_tsb = map(data, ~cor(.$post_length , .$time_since_birth, method = "pearson")),
+         corr_spearman_comment_num = map(data, ~cor(.$post_length , .$comment_num, method = "spearman"))) %>%
+  select(-data) %>%
+  unnest() %>%
+  gather("measure", "value", -subreddit, -author)
+
+mean_values <- score_corrs %>%
+  group_by(subreddit, measure) %>%
+  tidyboot::tidyboot_mean(col = value, na.rm = T)
+
+ggplot(score_corrs, aes(x = value)) +
+  geom_histogram() +
+  geom_vline(data = mean_values, 
+             aes(xintercept = mean), 
+             color = "red", linetype = 2) +
+  facet_grid(measure ~ subreddit) +
+  theme_classic()
+
+kable(mean_values)
+```
+
+
+
+```{r, eval = F}
+## Do scores get higher the longer you're in the community?
+
+#Weak evidence if you look at folks who have at least 50 posts.
+targ_authors <- tidy_reddit_f %>%
+  count(subreddit, author) %>% 
+  filter(n >= 50)
+
+nested_authors <- tidy_reddit_f %>% 
+  right_join(targ_authors %>% select(-n)) %>%
+  filter(text_type == "comment") %>%
+  group_by(subreddit, author) %>% 
+  mutate(birth = min(created_utc)) %>%
+  arrange(author, created_utc) %>%
+  mutate(comment_num = 1:n(),
+         time_since_birth = as.numeric(created_utc - birth)) %>%
+  ungroup() %>% 
+  select(subreddit, author, comment_num, time_since_birth, created_utc, score) %>%
+  group_by(subreddit, author) %>%
+  nest()
+
+score_corrs <- nested_authors %>%
+  mutate(corr_pearson_tsb = map(data, ~cor(.$score , .$time_since_birth, method = "pearson")),
+         corr_spearman_comment_num = map(data, ~cor(.$score , .$comment_num, method = "spearman"))) %>%
+  select(-data) %>%
+  unnest() %>%
+  gather("measure", "value", -subreddit, -author)
+
+mean_values <- score_corrs %>%
+  group_by(subreddit, measure) %>%
+   tidyboot::tidyboot_mean(col = value, na.rm = T)
+
+ggplot(score_corrs, aes(x = value)) +
+  geom_histogram() +
+  geom_vline(data = mean_values, 
+             aes(xintercept = mean), 
+             color = "red", linetype = 2) +
+  facet_grid(measure ~ subreddit) +
+  theme_classic()
+
+kable(mean_values)
+```
+
+```{r, eval = F}
+#HYPOTHESES:
+
+#* As population size increases, complexity of norms decreases (moderated by population structure, prop new, etc)
+#* Social variables influence alignment: people who are responded to more introduce more norms
+#* Norms of larger communities change more quickly and are less coherent across individuals
+#* Topic entropy as a mediating factor
+#* what are the social conditions for the emergence of a new words, and are those facilitated or hindered by population size
+```
+
