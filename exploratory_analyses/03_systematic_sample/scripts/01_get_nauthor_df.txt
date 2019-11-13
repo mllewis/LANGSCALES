@@ -1,0 +1,15 @@
+google query number of authors per subreddit (number of unique COMMENTERS during 2yr period)
+# langscale.sampled_reddits.allsubredditcomments
+
+SELECT author, subreddit, created_utc
+FROM `fh-bigquery.reddit_comments.20*`
+WHERE _TABLE_SUFFIX BETWEEN '17_01' AND '19_05' AND
+created_utc > 1504224000;
+
+
+# langscale.sampled_reddits.nauthorspersubreddit
+
+SELECT COUNT(DISTINCT author) AS nauthors, subreddit
+FROM `langscale.sampled_reddits.allsubredditcomments`
+GROUP BY subreddit
+ORDER BY COUNT(author) DESC;

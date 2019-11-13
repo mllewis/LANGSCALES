@@ -17,3 +17,6 @@ download file
 add .gz extention, unzip -> csv file
 
 
+
+#('slowcooking', 'askscience', 'politics', 'Piracy', 'Watchexchange', 'OkCupid', 'DarkEnglightenment', '3dshacks', 'fatFIRE', 'smallbusiness', 'kansascity',
+#  'philadelphia', 'chicago', 'Cleveland', 'akron')
