@@ -1,0 +1,276 @@
+---
+title: Reddit x 100
+author: Molly Lewis 
+date: "`r Sys.Date()`"
+output: 
+  html_document:
+    toc: true
+    number_sections: false
+    theme: cerulean
+    toc_float: false
+    code_folding: hide
+---
+  
+  
+```{r setup, include = F}
+# load packages
+library(tidyverse) 
+library(knitr)
+library(here)
+library(anytime)
+library(broom)
+library(data.table)
+
+
+opts_chunk$set(echo = T, message = F, warning = F, 
+               error = F, tidy = F,  cache = F, fig.height = 10, fig.width = 10)
+source(here("exploratory_analyses/01_reddit_pilot/scripts/make_corr_plot.R"))
+``` 
+
+# Sampled subreddits
+```{r}
+META_PATH <- here("exploratory_analyses/03_systematic_sample/data/subreddit_meta_data.csv")
+meta_data <- read_csv(META_PATH, col_names = c("subreddit", "author_H","author_n","word_H","word_mean_n","word_sd","word_total","score_mean","score_sd","score_H","comments_n_long","comments_n_all","posts_n_all","comments_posts_ratio","author_longevity_mean","author_longevity_sd","author_longevity_H","author_lag_sd","author_lag_H", "author_lag_mean"))
+
+
+meta_data2 <- meta_data %>%
+  mutate(word_H = word_H/log(comments_n_long),
+         score_H = score_H/log(comments_n_long),
+         author_longevity_H = author_longevity_H/log(author_n),
+         author_lag_H = author_lag_H/log(author_n)) %>%
+  drop_na() 
+
+DT::datatable(meta_data2 %>% arrange(-author_n))
+```
+ We ended up with `r nrow(meta_data2)`.
+ 
+# Descriptive subreddit stats
+ 
+```{r}
+meta_data2 %>%
+  gather("measure", "value", -subreddit) %>%
+  ggplot(aes(x = value)) +
+  geom_histogram() +
+  facet_wrap(~measure, scales = "free_x") +
+  scale_x_log10() +
+  theme_classic()
+```
+
+Pairwise correlations
+```{r}
+
+meta_data2 %>%
+  mutate_if(is.numeric, log) %>%
+  mutate_if(is.numeric, list(~na_if(., -Inf))) %>%
+  make_corr_plot()
+```
+
+
+# JSD at individual level
+```{r}
+PAIRWISE_TOPIC_JSD <- "/Volumes/wilbur_the_great/LANGSCALES_subreddit_sample/jsd_nth_post/"
+
+
+nth_post_data <- map_df(list.files(PAIRWISE_TOPIC_JSD, full.names = T), ~{read_csv(.x) %>% mutate(subreddit = .x)}) %>%
+  mutate(subreddit = str_replace(subreddit, paste0(PAIRWISE_TOPIC_JSD, "/"), ""),
+         subreddit = str_replace(subreddit, "_jsd_nth_post.csv", ""))
+
+over_individual_time <- nth_post_data  %>%
+  select(author, nth_post, previous_author_JSD, current_community_JSD, subreddit) %>%
+  #mutate(previous_to_current  = previous_author_JSD + current_community_JSD) %>%
+  gather("measure", "value", -nth_post, -subreddit, -author) 
+
+
+```
+
+```{r, fig.height = 12}
+over_individual_time_ms <- over_individual_time %>%
+  group_by(subreddit, nth_post, measure) %>%
+  summarize(mean_JSD = mean(value, na.rm = T),
+            n = n()) %>%
+  left_join(meta_data2) %>%
+  ungroup() %>%
+  mutate(subreddit = fct_reorder(subreddit, author_n))
+
+over_individual_time_ms %>%
+  ggplot(aes(x = nth_post, y = mean_JSD, group = measure, color = measure)) +
+  geom_point() +
+  geom_smooth() +
+  ggtitle("Post similarity over indvidual time (with community reference)") +
+  xlab("Nth post") +
+   facet_wrap(~subreddit, scales = "free_y",  nrow = 12) +
+  ylab("Mean JSD") +
+  theme_classic() +
+  theme(legend.position = "bottom")
+```
+
+```{r }
+good_subreddits <- over_individual_time %>%
+    group_by(subreddit, nth_post, measure) %>%
+    summarize(mean_JSD = mean(value, na.rm = T),
+              n = n()) %>%
+    filter(!is.na(mean_JSD)) %>% ungroup() %>%
+    count(subreddit)  %>%
+    filter(n>25) %>%
+    pull(subreddit)
+
+over_individual_time_ms <- over_individual_time %>%
+  filter(subreddit %in% good_subreddits) %>%
+  group_by(subreddit, nth_post, measure) %>%
+  summarize(mean_JSD = mean(value, na.rm = T),
+            n = n()) %>%
+  group_by(subreddit, measure) %>%
+  nest() %>%
+  mutate(temp = map(data, ~ tidy(cor.test(.$nth_post, .$mean_JSD))))  %>%
+  select(-data) %>%
+  unnest() %>%
+  left_join(meta_data2)
+
+over_individual_time_ms %>%
+  select(-word_H, -word_mean_n, -word_sd, -author_longevity_sd, -author_lag_sd, -comments_n_all) %>%
+  select(1,2,3,  11:23) %>%
+  gather("measure2", "value", -1:-3) %>%
+  ggplot(aes(x = value, y = estimate, group = measure, color = measure))+
+  geom_point(alpha = .3) +
+#  geom_label(aes(label = subreddit)) +
+  geom_smooth(method = "lm") +
+  facet_wrap(~measure2, scales = "free") +
+  scale_x_log10()  +
+  geom_hline(aes(yintercept = 0), linetype = 2) +
+  #geom_pointrange(aes(ymin = conf.low, ymax = conf.high), alpha =  .2) +
+  theme_classic()
+
+
+over_individual_time_ms_community <- over_individual_time_ms %>%
+  filter(measure == "current_community_JSD")
+
+over_individual_time_ms_individual <- over_individual_time_ms %>%
+  filter(measure == "previous_author_JSD")
+
+over_individual_time_ms_p_to_c <- over_individual_time_ms %>%
+  filter(measure == "previous_to_current")
+```
+
+```{r fig.height = 4, fig.width = 4}
+meta_data2 %>%
+  select(author_n, word_total, author_H, author_longevity_mean, score_mean, score_sd, comments_n_long) %>%
+  mutate_if(is.numeric, log) %>%
+  mutate_if(is.numeric, list(~na_if(., -Inf))) %>%
+  make_corr_plot()
+```
+
+Predicting author_i_t1 to author_i_t2 post distance over "time" (posts); larger estimate values mean that posts grow more disimiliar to each other over time. Number of words in a subreddit (word_total) is a strong predictor of this measure. Controling for number of words, author entropy and mean score,  there's *some* evidence to suggest that in larger communities, authors change (with respect to themselves) to a greater degree. The effect goes away if you don't control for score.
+
+
+```{r}
+lm(estimate ~ 
+     log(author_n) # how many commenters are there
+        + author_H  # how much is each author contributing to the subreddit 
+
+     + log(word_total)  # how many words in the comments, total?
+     + log(score_mean)  # what's the mean score of comments
+     #+ log(score_sd) # what's the variance in score of comments
+   ,data = over_individual_time_ms_individual) %>%
+  summary() %>%
+  tidy() %>%
+  kable()
+```
+
+Some evidence that other "social" variables might matter
+```{r}
+lm(estimate ~ 
+     log(author_n) # how many commenters are there
+        + author_H  # how much is each author contributing to the subreddit 
+
+   + author_longevity_H
+   + author_lag_H
+   + log(author_longevity_mean)
+    + log(author_lag_mean)
+     + log(word_total)  # how many words in the comments, total?
+     + log(score_mean)  # what's the mean score of comments
+     #+ log(score_sd) # what's the variance in score of comments
+   ,data = over_individual_time_ms_individual) %>%
+  summary() %>%
+  tidy() %>%
+  kable()
+```
+
+N = 53 subreddits
+
+
+# JSD over community time
+
+This is preliminary - missing data for about 15 communities.
+```{r}
+
+PAIRWISE_TOPIC_JSD <- "/Volumes/wilbur_the_great/LANGSCALES_subreddit_sample/jsd_over_community_time/"
+
+
+over_community_time <- map_df(list.files(PAIRWISE_TOPIC_JSD, full.names = T), ~{read_csv(.x) %>% mutate(subreddit = .x)}) %>%
+  mutate(subreddit = str_replace(subreddit, paste0(PAIRWISE_TOPIC_JSD, "/"), ""),
+         subreddit = str_replace(subreddit, "_jsd_over_community_time.csv", "")) %>%
+  filter(n > 1)
+
+over_community_time_with_meta <- over_community_time %>%
+  left_join(meta_data2) %>%
+  mutate(subreddit = fct_reorder(subreddit, author_n))
+
+good_subreddits2 <- over_community_time_with_meta %>%
+    count(subreddit) %>%
+    filter(n >2) %>%
+    pull(subreddit)
+
+jsd_time_correlation <- over_community_time_with_meta %>%
+  #filter(!is.na(mean_jsd)) %>%
+  filter(subreddit %in% good_subreddits2) %>%
+  group_by(subreddit) %>%
+  nest() %>%
+  mutate(temp = map(data, ~tidy(cor.test(as.numeric(.$group), .$mean_jsd))))  %>%
+  select(-data) %>%
+  unnest()  %>%
+  left_join(meta_data2)
+
+jsd_time_correlation %>%
+    select(-word_H, -word_mean_n, -word_sd, -author_longevity_sd, -author_lag_sd, -comments_n_all) %>%
+  select(1,2,10:22) %>%
+  gather("measure", "value", -1:-2) %>%
+  ggplot(aes(x = value, y = estimate))+
+  #geom_label(aes(label = subreddit)) +
+  geom_smooth(method = "lm") +
+  facet_wrap(~measure, scales = "free_x") +
+  scale_x_log10() +
+  geom_hline(aes(yintercept = 0), linetype = 2) +
+  geom_point() +
+ # geom_pointrange(aes(ymin = conf.low, ymax = conf.high), alpha =  .2) +
+  theme_classic()
+
+lm(estimate ~ 
+     log(author_n) # how many commenters are there
+        + author_H  # how much is each author contributing to the subreddit 
+
+   + author_longevity_H
+   + author_lag_H
+   + log(author_longevity_mean)
+    + log(author_lag_mean)
+     + log(word_total)  # how many words in the comments, total?
+     + log(score_mean)  # what's the mean score of comments
+     #+ log(score_sd) # what's the variance in score of comments
+   ,data = jsd_time_correlation) %>%
+  summary() %>%
+  tidy() %>%
+  kable()
+
+```
+
+
+```{r, include =F, eval = F}
+Language variables:
+n words
+score
+
+Comunnity variables:
+comments to posts ratio
+num authors
+author longevity
+```
+
