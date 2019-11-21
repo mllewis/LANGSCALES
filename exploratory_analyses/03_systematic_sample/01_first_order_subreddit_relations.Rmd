@@ -1,0 +1,164 @@
+---
+title: Reddit x 100
+author: Molly Lewis 
+date: "`r Sys.Date()`"
+output: 
+  html_document:
+    toc: true
+    number_sections: false
+    theme: cerulean
+    toc_float: false
+    code_folding: hide
+---
+  
+  
+```{r setup, include = F}
+# load packages
+library(tidyverse) 
+library(knitr)
+library(here)
+library(anytime)
+library(broom)
+library(data.table)
+
+
+opts_chunk$set(echo = T, message = F, warning = F, 
+               error = F, tidy = F,  cache = F, fig.height = 10, fig.width = 10)
+source(here("exploratory_analyses/01_reddit_pilot/scripts/make_corr_plot.R"))
+``` 
+
+```{r}
+METADATA_PATH <- here("exploratory_analyses/03_systematic_sample/data/subreddit_meta_data.csv")
+
+meta_data_raw <- read_csv(METADATA_PATH, col_names = c("subreddit", "author_H","author_n","word_H","word_mean_n","word_sd","word_total","score_mean","score_sd","score_H","comments_n_long","comments_n_all","posts_n_all","comments_posts_ratio","author_longevity_mean","author_longevity_sd","author_longevity_H","author_lag_sd","author_lag_H", "author_lag_mean"))
+
+meta_data <- meta_data_raw %>%
+  mutate(word_H = word_H/log(comments_n_long),
+         score_H = score_H/log(comments_n_long),
+         author_longevity_H = author_longevity_H/log(author_n),
+         author_lag_H = author_lag_H/log(author_n)) %>%
+  drop_na() 
+```
+
+## Subreddit-level variables over time
+
+### Churn{.tabset}
+For each subreddit, for each week, calculated in/(in + out). Where "in" = first time posting to community; "out" = last time posting in community. The data below is for a measure where I only consider posts greater than 100 words, but the pattern looks the same when you include all posts. Each panel shows a subreddit with the red dashed line indicating the mean in-churn over time. Red lines greater than .5 indicate that a community is growing. Note that we're somewhat underestimating overall growth here by including the last time period (where everyone dies). But, this is the same across communities.
+
+#### Over time
+```{r, fig.height = 10, fig.width = 10}
+CHURN_PATH <- here("exploratory_analyses/03_systematic_sample/data/churn_overtime.csv")
+
+churn <- read_csv(CHURN_PATH, col_names = c("subreddit", "created_bin", "in_churn", "inout_sum", "comment_length_type")) %>%
+  filter(comment_length_type == "long_only")
+
+in_churn <- churn %>%
+  group_by(subreddit) %>%
+  summarize(mean_churn = mean(in_churn))
+
+ggplot(churn, aes(x = created_bin, y = in_churn)) +
+  #geom_point() +
+  geom_hline(data = in_churn, aes(yintercept = mean_churn), linetype = 2, color = "red") +
+  geom_hline(aes(yintercept = .5)) +
+  geom_smooth() +
+  ylim(0,1) +
+  facet_wrap(~subreddit) +
+  theme_classic()
+```
+
+#### Mean churn rate 
+```{r, fig.height = 5, fig.width = 5}
+in_churn %>%
+  ggplot(aes(x = mean_churn)) +
+  geom_histogram() +
+  theme_classic()
+```
+
+
+### Lag{.tabset}
+
+
+#### Over time
+
+```{r}
+LAG_PATH <- here("exploratory_analyses/03_systematic_sample/data/thread_lag_overtime.csv")
+
+lag <- read_csv(LAG_PATH, col_names = c("subreddit", "created_bin", "lag_sec", "n", "comment_length_type"))%>%
+  filter(comment_length_type == "long_only")
+
+
+
+ggplot(lag, aes(x = created_bin, y = lag_sec, group = comment_length_type, color = comment_length_type)) +
+  #geom_point() +
+  #geom_hline(data = lag_sec, aes(yintercept = mean_churn), linetype = 2, color = "red") +
+ # geom_hline(aes(yintercept = .5)) +
+  geom_smooth() +
+ # ylim(0,1) +
+  facet_wrap(~subreddit, scales = "free_y") +
+  theme_classic()
+
+
+```
+
+
+#### Overall mean
+
+### Score{.tabset}
+```{r}
+SCORE_PATH <- here("exploratory_analyses/03_systematic_sample/data/score_overtime.csv")
+
+scores<- read_csv(SCORE_PATH, col_names = c( "created_bin", "lag_sec",  "comment_length_type", "subreddit"))%>%
+  filter(comment_length_type == "long_only")
+
+
+ggplot(scores, aes(x = created_bin, y = lag_sec, group = comment_length_type, color = comment_length_type)) +
+  #geom_point() +
+  #geom_hline(data = lag_sec, aes(yintercept = mean_churn), linetype = 2, color = "red") +
+ # geom_hline(aes(yintercept = .5)) +
+  geom_smooth() +
+ # ylim(0,1) +
+  facet_wrap(~subreddit, scales = "free_y") +
+  theme_classic()
+
+```
+
+
+### Nth similarity {.tabset}
+# JSD at individual level
+```{r}
+PAIRWISE_TOPIC_JSD <- "/Volumes/wilbur_the_great/LANGSCALES_subreddit_sample/jsd_nth_post/"
+
+
+nth_post_data <- map_df(list.files(PAIRWISE_TOPIC_JSD, full.names = T), ~{read_csv(.x) %>% mutate(subreddit = .x)}) %>%
+  mutate(subreddit = str_replace(subreddit, paste0(PAIRWISE_TOPIC_JSD, "/"), ""),
+         subreddit = str_replace(subreddit, "_jsd_nth_post.csv", ""))
+
+over_individual_time <- nth_post_data  %>%
+  select(author, nth_post, previous_author_JSD, subreddit) %>%
+  #mutate(previous_to_current  = previous_author_JSD + current_community_JSD) %>%
+  gather("measure", "value", -nth_post, -subreddit, -author) 
+
+
+```
+
+```{r, fig.height = 12}
+over_individual_time_ms <- over_individual_time %>%
+  group_by(subreddit, nth_post, measure) %>%
+  summarize(mean_JSD = mean(value, na.rm = T),
+            n = n()) %>%
+  left_join(meta_data) %>%
+  ungroup() %>%
+  mutate(subreddit = fct_reorder(subreddit, author_n))
+
+over_individual_time_ms %>%
+  ggplot(aes(x = nth_post, y = mean_JSD, group = measure, color = measure)) +
+  geom_point() +
+  geom_smooth() +
+  ggtitle("Post similarity over indvidual time (with community reference)") +
+  xlab("Nth post") +
+   facet_wrap(~subreddit, scales = "free_y",  nrow = 12) +
+  ylab("Mean JSD") +
+  theme_classic() +
+  theme(legend.position = "bottom")
+```
+

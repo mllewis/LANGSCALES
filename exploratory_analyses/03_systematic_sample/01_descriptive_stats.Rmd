@@ -238,7 +238,7 @@ jsd_time_correlation %>%
   #geom_label(aes(label = subreddit)) +
   geom_smooth(method = "lm") +
   facet_wrap(~measure, scales = "free_x") +
-  scale_x_log10() +
+  #scale_x_log10() +
   geom_hline(aes(yintercept = 0), linetype = 2) +
   geom_point() +
  # geom_pointrange(aes(ymin = conf.low, ymax = conf.high), alpha =  .2) +
