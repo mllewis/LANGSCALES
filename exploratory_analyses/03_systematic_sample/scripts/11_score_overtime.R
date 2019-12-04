@@ -53,7 +53,7 @@ try({
     summarize(mean_score = mean(score)) %>%
     group_by(created_bin) %>%
     summarize(mean_score = mean(mean_score)) %>%
-    mutate(comment_length_type = "all") %>%
+    mutate(comment_length_type = "long_only") %>%
     as.data.table()
 
   score_df <- bind_rows(comment_score_all, comment_score_long) %>%

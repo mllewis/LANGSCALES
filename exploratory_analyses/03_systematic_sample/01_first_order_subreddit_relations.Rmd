@@ -20,6 +20,7 @@ library(here)
 library(anytime)
 library(broom)
 library(data.table)
+library(viridis)
 
 
 opts_chunk$set(echo = T, message = F, warning = F, 
@@ -40,87 +41,389 @@ meta_data <- meta_data_raw %>%
   drop_na() 
 ```
 
-## Subreddit-level variables over time
+```{r}
+META_PATH <- here("exploratory_analyses/03_systematic_sample/data/subreddit_meta_data.csv")
+meta_data <- read_csv(META_PATH, col_names = c("subreddit", "author_H","author_n","word_H","word_mean_n","word_sd","word_total","score_mean","score_sd","score_H","comments_n_long","comments_n_all","posts_n_all","comments_posts_ratio","author_longevity_mean","author_longevity_sd","author_longevity_H","author_lag_sd","author_lag_H", "author_lag_mean")) %>%
+  #select(subreddit, author_n, word_mean_n, comments_n_all) %>%
+  filter(author_n > 100) 
+
+
+```
+
+
+## First-order subreddit variables
 
 ### Churn{.tabset}
-For each subreddit, for each week, calculated in/(in + out). Where "in" = first time posting to community; "out" = last time posting in community. The data below is for a measure where I only consider posts greater than 100 words, but the pattern looks the same when you include all posts. Each panel shows a subreddit with the red dashed line indicating the mean in-churn over time. Red lines greater than .5 indicate that a community is growing. Note that we're somewhat underestimating overall growth here by including the last time period (where everyone dies). But, this is the same across communities.
+For each subreddit, for each week, calculated in/(in + out). Where "in" = first time posting to community; "out" = last time posting in community. The data below is for a measure where I only consider all comments (not restricitng on length). Each panel shows a subreddit with the red dashed line indicating the mean in-churn over time. Red lines greater than .5 indicate that a community is growing. Note that we're somewhat underestimating overall growth here by including the last time period (where everyone dies). But, this is the same across communities.
 
 #### Over time
 ```{r, fig.height = 10, fig.width = 10}
 CHURN_PATH <- here("exploratory_analyses/03_systematic_sample/data/churn_overtime.csv")
 
-churn <- read_csv(CHURN_PATH, col_names = c("subreddit", "created_bin", "in_churn", "inout_sum", "comment_length_type")) %>%
-  filter(comment_length_type == "long_only")
+churn <- read_csv(CHURN_PATH, col_names = c("subreddit", "created_bin", "in_churn",
+                                            "inout_sum", "comment_length_type")) %>%
+  filter(comment_length_type == "all") %>%
+  left_join(meta_data) %>%
+  mutate(subreddit = fct_reorder(subreddit, author_n))  %>%
+  filter(author_n > 100) 
 
 in_churn <- churn %>%
   group_by(subreddit) %>%
   summarize(mean_churn = mean(in_churn))
 
-ggplot(churn, aes(x = created_bin, y = in_churn)) +
-  #geom_point() +
+ggplot(churn, aes(x = created_bin, y = in_churn, group = subreddit)) +
   geom_hline(data = in_churn, aes(yintercept = mean_churn), linetype = 2, color = "red") +
   geom_hline(aes(yintercept = .5)) +
   geom_smooth() +
   ylim(0,1) +
+  xlab("week") +
+  ylab("Churn-in") +
   facet_wrap(~subreddit) +
-  theme_classic()
+  theme_classic() +
+  theme(axis.text.x = element_text(angle = 90))
+
+churn %>%
+  ggplot(aes(x = created_bin, y = in_churn, color = log(author_n), 
+              group = subreddit)) +
+  scale_color_viridis(alpha = .5) +
+  geom_smooth(se = F) +
+  xlab("week") +
+  ylab("Churn-in") +
+  theme_classic() +
+  theme(axis.text.x = element_text(angle = 90))
 ```
 
 #### Mean churn rate 
 ```{r, fig.height = 5, fig.width = 5}
 in_churn %>%
   ggplot(aes(x = mean_churn)) +
+  xlab("Chur-in") +
   geom_histogram() +
+  theme_classic()
+```
+
+### Mean churn and author n
+```{r, fig.height = 5, fig.width = 5}
+
+in_churn %>%
+  left_join(meta_data) %>%
+  ggplot(aes(x = author_n, y = mean_churn)) +
+  geom_point() +
+  ylab("Churn-in") +
+  geom_smooth(method = "lm")+
+  scale_x_log10()+
   theme_classic()
 ```
 
 
 ### Lag{.tabset}
+Within the same thread, how long does it take for a different person to respond?
+
+For each subreddit, for each thread, calculated the lag in seconds between comments from different people. Then, averaged across threads in the same week. The data below are for posts of any length.  
 
 
 #### Over time
-
 ```{r}
 LAG_PATH <- here("exploratory_analyses/03_systematic_sample/data/thread_lag_overtime.csv")
 
-lag <- read_csv(LAG_PATH, col_names = c("subreddit", "created_bin", "lag_sec", "n", "comment_length_type"))%>%
-  filter(comment_length_type == "long_only")
+lag <- read_csv(LAG_PATH, col_names = c("subreddit", "created_bin", "lag_sec", "n", "comment_length_type")) %>%
+  filter(comment_length_type == "all") %>%
+  left_join(meta_data) %>%
+  mutate(subreddit = fct_reorder(subreddit, author_n))  %>%
+  filter(author_n > 100) 
 
+lag_mean <- lag %>%
+  group_by(subreddit) %>%
+  summarize(mean_lag = mean(lag_sec))
 
-
-ggplot(lag, aes(x = created_bin, y = lag_sec, group = comment_length_type, color = comment_length_type)) +
-  #geom_point() +
-  #geom_hline(data = lag_sec, aes(yintercept = mean_churn), linetype = 2, color = "red") +
- # geom_hline(aes(yintercept = .5)) +
+ggplot(lag, aes(x = created_bin, y = lag_sec)) +
+  geom_hline(data = lag_mean, aes(yintercept = mean_lag), linetype = 2, color = "red") +
   geom_smooth() +
- # ylim(0,1) +
-  facet_wrap(~subreddit, scales = "free_y") +
-  theme_classic()
+  ylab("Lag (log seconds)") +
+  scale_y_log10() +
+  facet_wrap(~subreddit) +
+  theme_classic() +
+  theme(axis.text.x = element_text(angle = 90))
 
+
+ggplot(lag, aes(x = created_bin, y = lag_sec, group = subreddit, color = log(author_n))) +
+  geom_smooth(se = F) +
+  ylab("Lag (log seconds)") +
+  scale_y_log10() +
+  scale_color_viridis(alpha = .8) +
+  theme_classic() +
+  theme(axis.text.x = element_text(angle = 90))
 
 ```
 
 
 #### Overall mean
+```{r}
+lag_mean %>%
+  ggplot(aes(x = mean_lag)) +
+  scale_x_log10() +
+  xlab("Lag (log secs)") +
+  geom_histogram() +
+  theme_classic()
+```
+
+### Mean lag and author n
+```{r, fig.height = 5, fig.width = 5}
+lag_mean %>%
+  left_join(meta_data) %>%
+  ggplot(aes(x = author_n, y = mean_lag)) +
+  geom_point() +
+  ylab("Churn-in") +
+  geom_smooth(method = "lm")+
+  scale_y_log10(name = "Lag (log seconds)")+
+  scale_x_log10(name = "N authors (log)")+
+  theme_classic()
+```
+
 
 ### Score{.tabset}
+This is the mean score per subreddit in 1-week bins (all comments).
+
+#### Over time
 ```{r}
 SCORE_PATH <- here("exploratory_analyses/03_systematic_sample/data/score_overtime.csv")
 
-scores<- read_csv(SCORE_PATH, col_names = c( "created_bin", "lag_sec",  "comment_length_type", "subreddit"))%>%
-  filter(comment_length_type == "long_only")
+scores<- read_csv(SCORE_PATH, col_names = c( "created_bin", "mean_score", 
+                                             "comment_length_type", "subreddit")) %>%
+  filter(comment_length_type == "all") %>%
+  left_join(meta_data) %>%
+  mutate(subreddit = fct_reorder(subreddit, author_n),
+         mean_score = as.numeric(mean_score),
+         created_bin = lubridate::round_date(as.POSIXct(created_bin), "week")) %>%
+  filter(author_n > 100)  %>%
+  mutate(mean_score_normalized = mean_score/author_n)
+
+score_mean <- scores %>%
+  group_by(subreddit) %>%
+  summarize(mean_score = mean(mean_score),
+            mean_score_normalized = mean(mean_score_normalized))
+
+ggplot(scores, aes(x = created_bin, y = mean_score, group = subreddit, 
+                   color = log(author_n))) +
+  geom_smooth(se = F) +
+  ylab("Score (log)") +
+  scale_y_log10() +
+  scale_color_viridis(alpha = .8) +
+  theme_classic() +
+  theme(axis.text.x = element_text(angle = 90))
+
+ggplot(scores, aes(x = created_bin, y = mean_score_normalized, group = subreddit, 
+                   color = log(author_n))) +
+  geom_smooth(se = F) +
+  ylab("Score/author_n (log)") +
+  scale_y_log10() +
+  scale_color_viridis(alpha = .8) +
+  theme_classic() +
+  theme(axis.text.x = element_text(angle = 90))
+```
 
 
-ggplot(scores, aes(x = created_bin, y = lag_sec, group = comment_length_type, color = comment_length_type)) +
-  #geom_point() +
-  #geom_hline(data = lag_sec, aes(yintercept = mean_churn), linetype = 2, color = "red") +
- # geom_hline(aes(yintercept = .5)) +
-  geom_smooth() +
- # ylim(0,1) +
-  facet_wrap(~subreddit, scales = "free_y") +
+#### Overall mean
+```{r}
+score_mean %>%
+  ggplot(aes(x = mean_score)) +
+  scale_x_log10() +
+  xlab("Score (log)") +
+  geom_histogram() +
   theme_classic()
 
+score_mean %>%
+  ggplot(aes(x = mean_score_normalized)) +
+  scale_x_log10() +
+  xlab("Score/author_n (log)") +
+  geom_histogram() +
+  theme_classic()
 ```
+
+
+#### Mean score and author n
+```{r, fig.height = 5, fig.width = 5}
+score_mean %>%
+  left_join(meta_data) %>%
+  ggplot(aes(x = author_n, y = mean_score)) +
+  geom_point() +
+  geom_smooth(method = "lm")+
+  scale_y_log10(name = "Score") +
+  scale_x_log10(name = "N authors (log)")+
+  theme_classic()
+
+score_mean %>%
+  left_join(meta_data) %>%
+  ggplot(aes(x = author_n, y = mean_score_normalized)) +
+  geom_point() +
+  geom_smooth(method = "lm")+
+  scale_y_log10(name = "Score/author_n (log)") +
+  scale_x_log10(name = "N authors (log)")+
+  theme_classic()
+```
+
+### Post Entropy{.tabset}
+Based on topic odels
+
+#### Over time
+```{r}
+ENTROPY_PATH <- here("exploratory_analyses/03_systematic_sample/data/subreddit_post_entropy_overtime.csv")
+
+comment_entropy<- read_csv(ENTROPY_PATH, col_names = c( "subreddit", "created_bin", 
+                                             "mean_document_entropy", "n")) %>%
+  left_join(meta_data) %>%
+  mutate(subreddit = fct_reorder(subreddit, author_n),
+         created_bin = lubridate::round_date(as.POSIXct(created_bin), "week")) %>%
+  filter(author_n > 100) 
+
+entropy_mean <- comment_entropy %>%
+  group_by(subreddit) %>%
+  summarize(mean_document_entropy = mean(mean_document_entropy))
+
+
+ggplot(comment_entropy, aes(x = created_bin, y = mean_document_entropy, group = subreddit, 
+                   color = log(author_n))) +
+  geom_smooth(se = F) +
+  ylab("Score/author_n (log)") +
+  scale_color_viridis(alpha = .8) +
+  theme_classic() +
+  theme(axis.text.x = element_text(angle = 90))
+```
+
+
+#### Overall mean
+```{r}
+entropy_mean %>%
+  ggplot(aes(x = mean_document_entropy)) +
+  xlab("Score (log)") +
+  geom_histogram() +
+  theme_classic()
+```
+
+
+### Mean and author n
+```{r, fig.height = 5, fig.width = 5}
+entropy_mean %>%
+  left_join(meta_data) %>%
+  ggplot(aes(x = author_n, y = mean_document_entropy)) +
+  geom_point() +
+  geom_smooth(method = "lm")+
+  scale_x_log10(name = "N authors (log)")+
+  theme_classic()
+```
+
+### Author Distribution{.tabset}
+How are comments distributed over authors? Gini coefficient (higher values - more inequality)
+
+```{r}
+AUTHOR_INEQ <- here("exploratory_analyses/03_systematic_sample/data/subreddit_author_inequality.csv")
+
+author_ineq <- read_csv(AUTHOR_INEQ, col_names = c("subreddit", "comment_author_H", "comment_gini_coeff",
+                                     "comment_normalized_author_H", "post_author_H", "post_gini_coeff",
+                                    "post_normalized_author_H")) %>%
+  left_join(meta_data) %>%
+  mutate(subreddit = fct_reorder(subreddit, author_n)) %>%
+  filter(author_n > 100) 
+
+
+ggplot(author_ineq, aes(x = author_n, y = comment_gini_coeff)) +
+  geom_point() +
+  geom_smooth(method = "lm")+
+  ylab("Comment Gini Coefficient") +
+  scale_x_log10(name = "N authors (log)")+
+  theme_classic()
+
+AUTHOR_INEQ_LONG <- here("exploratory_analyses/03_systematic_sample/data/subreddit_author_inequality_long.csv")
+
+author_ineq_long <- read_csv(AUTHOR_INEQ_LONG, col_names = c("subreddit", "comment_author_H",
+                                                             "comment_gini_coeff",
+                                     "comment_normalized_author_H")) %>%
+  left_join(meta_data) %>%
+  mutate(subreddit = fct_reorder(subreddit, author_n)) %>%
+  filter(author_n > 100) 
+
+ggplot(author_ineq_long, aes(x = author_n, y = comment_gini_coeff)) +
+  geom_point() +
+  geom_smooth(method = "lm")+
+  ylab("Comment Gini Coefficient") +
+  scale_x_log10(name = "N authors (log)")+
+  theme_classic()
+```
+Also looked at entropy(number_of_posts_per_author)/log(n_authors)
+
+# http://barabasi.com/f/233.pdf
+
+## Other variables
+###  Total words
+```{r}
+ggplot(meta_data, aes(x = author_n, y = word_total)) +
+  geom_point() +
+  geom_smooth(method = "lm")+
+  scale_y_log10(name = "N total words (log)") +
+  scale_x_log10(name = "N authors (log)")+
+  theme_classic()
+```
+more people, more words - There's no relationship between mean/sd post length and author n. 
+
+### N comments 
+>100 words
+
+```{r}
+ggplot(meta_data, aes(x = author_n, y = comments_n_long)) +
+  geom_point() +
+  geom_smooth(method = "lm")+
+  scale_y_log10(name = "N total words (log)") +
+  scale_x_log10(name = "N authors (log)")+
+  theme_classic()
+```
+
+### N Posts 
+```{r}
+ggplot(meta_data, aes(x = author_n, y = posts_n_all)) +
+  geom_point() +
+  geom_smooth(method = "lm")+
+  scale_y_log10(name = "N posts (log)") +
+  scale_x_log10(name = "N authors (log)")+
+  theme_classic()
+```
+
+### Comments to post ratio
+```{r}
+ggplot(meta_data, aes(x = author_n, y = comments_posts_ratio)) +
+  geom_point() +
+  geom_smooth(method = "lm")+
+  scale_y_log10(name = "comments/posts (log)") +
+  scale_x_log10(name = "N authors (log)")+
+  theme_classic()
+```
+
+### Author longevity
+Time from first to last post
+```{r}
+ggplot(meta_data, aes(x = author_n, y = author_longevity_mean)) +
+  geom_point() +
+  geom_smooth(method = "lm")+
+  ylab("Author longevity") +
+  scale_x_log10(name = "N authors (log)")+
+  theme_classic()
+```
+
+### Author lag
+Mean time between posts by the same authors
+```{r}
+ggplot(meta_data, aes(x = author_n, y = author_lag_mean)) +
+  geom_point() +
+  geom_smooth(method = "lm")+
+  ylab("Author lag") +
+  scale_x_log10(name = "N authors (log)")+
+  theme_classic()
+```
+
+
+
+
+
+
 
 
 ### Nth similarity {.tabset}
@@ -148,15 +451,17 @@ over_individual_time_ms <- over_individual_time %>%
             n = n()) %>%
   left_join(meta_data) %>%
   ungroup() %>%
+  filter(nth_post <= 50) %>%
   mutate(subreddit = fct_reorder(subreddit, author_n))
 
 over_individual_time_ms %>%
   ggplot(aes(x = nth_post, y = mean_JSD, group = measure, color = measure)) +
-  geom_point() +
-  geom_smooth() +
-  ggtitle("Post similarity over indvidual time (with community reference)") +
+ #geom_point() +
+  geom_smooth(method = "lm") +
+  #geom_line() +
+  ggtitle("Post similarity over indvidual time") +
   xlab("Nth post") +
-   facet_wrap(~subreddit, scales = "free_y",  nrow = 12) +
+  facet_wrap(~subreddit,  nrow = 12) +
   ylab("Mean JSD") +
   theme_classic() +
   theme(legend.position = "bottom")

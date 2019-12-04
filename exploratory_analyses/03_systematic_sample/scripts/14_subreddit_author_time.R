@@ -1,4 +1,4 @@
-# get density of author postings in each subreddit
+# Get subreddit level time author variables
 
 library(tidyverse)
 library(data.table)
@@ -10,12 +10,8 @@ library(here)
 
 
 LOCAL_PATH <-  "/Volumes/wilbur_the_great/LANGSCALES_subreddit_sample/"
-OUT_PATH <- here("exploratory_analyses/03_systematic_sample/data/subreddit_meta_data.csv")
-get_author_entropy <- function(df){
-  number_of_posts_per_author <-  count(df, author)$n
-  n_authors <- length(number_of_posts_per_author)
-  entropy(number_of_posts_per_author)/log(n_authors)
-}
+OUT_PATH <- here("exploratory_analyses/03_systematic_sample/data/subreddit_author_time_data.csv")
+
 
 get_author_time_data <- function(df){
 
@@ -58,23 +54,11 @@ get_meta_for_one_subreddit <- function(subreddit, local_path, outpath){
   }
 
   tidy_data <- fread(inpath) %>%
-    lazy_dt() %>%
-    mutate(created_utc = as.POSIXct(created_utc)) %>%
+    mutate(created_utc = lubridate::as_datetime(created_utc)) %>%
     select(-body)  %>%
-    as.data.table()
+    as.data.table() %>%
+    filter(n_words >= 100)
 
-  n_comments_total <-  count(tidy_data, text_type) %>%
-    filter(text_type == "comment") %>%
-    pull(n)
-
-  n_posts_total <-  count(tidy_data, text_type) %>%
-    filter(text_type == "post") %>%
-    pull(n)
-
-  long_posts <- tidy_data %>%
-    filter(n_words >= 100) %>%
-    mutate(n_words = as.numeric(n_words),
-           score = as.numeric(score))
 
   author_time_data <-  try(get_author_time_data(long_posts), TRUE)
 
@@ -89,28 +73,13 @@ get_meta_for_one_subreddit <- function(subreddit, local_path, outpath){
     author_time_data <- author_time_data
   }
 
-  all_meta <-  long_posts %>%
-      summarize(
-        author_H  = get_author_entropy(.),
-        author_n = length(unique(.$author)),
-        word_H =  entropy(.$n_words),
-        word_mean_n = mean(.$n_words),
-        word_sd = sd(.$n_words),
-        word_total = sum(.$n_words),
-        score_mean = mean(.$score),
-        score_sd = sd(.$score),
-        score_H = entropy(.$score),
-        comment_long_n = n()) %>%
-      mutate(
-       comments_n_all = n_comments_total,
-       posts_n_all = n_posts_total,
-       comments_posts_ratio = n_comments_total/n_posts_total) %>%
+  author_time_meta_data <-
     bind_cols(author_time_data) %>%
     mutate(subreddit = subreddit) %>%
     select(subreddit, everything())
 
 
-  write_csv(all_meta, outpath, append = T)
+  write_csv(author_time_meta_data, outpath, append = T)
 
 }
 
@@ -121,6 +90,6 @@ target_subreddits <- glue("{LOCAL_PATH}tidy/")%>%
   str_replace_all("_tidy_comments_posts_f.csv","")
 
 
-walk(rev(target_subreddits)[14:97], get_meta_for_one_subreddit, LOCAL_PATH, OUT_PATH)
+walk(target_subreddits, get_meta_for_one_subreddit, LOCAL_PATH, OUT_PATH)
 
 
