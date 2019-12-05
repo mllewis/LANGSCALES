@@ -11,7 +11,6 @@
 exploratory_analyses/01_reddit_pilot/data/*
 exploratory_analyses/02_reddit_scaled_up/scripts/langscale-e75cff32760e.json
 exploratory_analyses/02_reddit_scaled_up/data/*
-exploratory_analyses/03_systematic_sample/data/*
 exploratory_analyses/03_systematic_sample/scripts/langscale-e75cff32760e.json
 
 
