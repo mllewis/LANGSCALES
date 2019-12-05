@@ -60,7 +60,7 @@ get_meta_for_one_subreddit <- function(subreddit, local_path, outpath){
     filter(n_words >= 100)
 
 
-  author_time_data <-  try(get_author_time_data(long_posts), TRUE)
+  author_time_data <-  try(get_author_time_data(tidy_data), TRUE)
 
   if(inherits(author_time_data, "try-error")){
     author_time_data <- data.frame(author_longevity_mean = NA,
