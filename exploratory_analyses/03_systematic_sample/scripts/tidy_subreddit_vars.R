@@ -61,6 +61,7 @@ author_ineq_long <- read_csv(AUTHOR_INEQ_LONG, col_names = c("subreddit", "comme
 # scores
 scores<- read_csv(SCORE_PATH, col_names = c( "created_bin", "mean_score",
                                              "comment_length_type", "subreddit")) %>%
+  mutate(mean_score = as.numeric(mean_score)) %>%
   filter(comment_length_type == "all")
 
 score_mean <- scores %>%
