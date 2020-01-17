@@ -1,18 +1,6 @@
-TITLE
+Language structure and community size
 ===
 
-Lewis, M. & XX. (under review). TITLE. <!-- [[preprint]](writeup/journal/iat_lang.pdf) [[source]](writeup/journal/iat_lang.Rmd) [[supplemental materials]](https://mollylewis.shinyapps.io/iatlang_SI/).
+With Simon DeDeo.
 
-In this project,...
-
-The file `writeup/journal/iat_lang.Rmd` contain....
-
-Below is a key figure from the paper.
-
-<br>
-
-<img src="writeup/journal/key_fig.png?raw=true" height="400">
-
--->
-
-Feel free to email me with questions and comments at mollyllewis@gmail.com.
+ <!--Lewis, M. & XX. (under review). TITLE. [[preprint]](writeup/journal/iat_lang.pdf) [[source]](writeup/journal/iat_lang.Rmd) [[supplemental materials]](https://mollylewis.shinyapps.io/iatlang_SI/).-->
