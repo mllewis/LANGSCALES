@@ -1,0 +1,165 @@
+---
+title: Reddit x 100
+subtitle: Author uniqueness
+author: Molly Lewis 
+date: "`r Sys.Date()`"
+output: 
+  html_document:
+    toc: true
+    number_sections: false
+    theme: cerulean
+    toc_float: true
+    code_folding: hide
+---
+  
+  
+```{r setup, include = F}
+# load packages
+library(tidyverse) 
+library(knitr)
+library(here)
+library(anytime)
+library(broom)
+library(data.table)
+library(viridis)
+
+
+opts_chunk$set(echo = T, message = F, warning = F, 
+               error = F, tidy = F,  cache = F, fig.height = 5, fig.width = 5)
+source(here("exploratory_analyses/01_reddit_pilot/scripts/make_corr_plot.R"))
+
+``` 
+
+Q: How unique are authors in a subreddit in their comments with respect to that subreddit?
+
+
+This is one comment per author per subreddit per week (min length = 100 words; min community size = 10).
+
+Measure: 
+
+* $p(w)$ - probability of a word in a subreddit (freq/total_words)
+* $c$ = set of words produced for one comment
+* $C$ = set of comments by one author 
+* $A$ = set of authors in one subreddit
+
+Log comment uniqueness:
+
+$$LCU = \frac{\sum_{w\in c} \log p(w)}{|c|}$$	
+Log author uniqueness:
+$$LAU = \frac{\sum_{c\in C}(LCU)}{|C|}$$	
+Log subreddit uniqueness:
+$$LSU = \frac{\sum_{a\in A}(LAU)}{|A|}$$	
+
+```{r, include = F}
+AUTHOR_COUNTS <-  here("exploratory_analyses/03_systematic_sample/data/subreddit_counts_scores.csv")
+author_count_measures <- read_csv(AUTHOR_COUNTS, col_names = c("subreddit","author_n","word_H","word_mean_n","word_sd","word_total","score_mean",                                                    "score_sd","score_H","comments_n_long","comments_n_all",
+                                                               "posts_n_all","comments_posts_ratio"))
+
+AUTHOR_TIME <- here("exploratory_analyses/03_systematic_sample/data/subreddit_author_time_data.csv")
+author_time <- read_csv(AUTHOR_TIME, col_names = c("subreddit", "author_longevity_mean", "author_sd_mean",
+                                                   "author_longevity_H", "author_lag_sd", "author_lag_H", "author_lag_mean")) 
+```
+
+```{r}
+# language variables
+LCU_PATH <- "/Volumes/wilbur_the_great/LANGSCALES_subreddit_sample/lau_by_author_comment/"
+lcu_measures <- map_df(list.files(LCU_PATH, full.names = T), read_csv) 
+
+lcu_measures_tidy <- lcu_measures %>%
+  select(subreddit, everything()) %>%
+  rename(lcu = lau) %>%
+  filter(!(subreddit == "newsokur"))
+
+lau_measures <- lcu_measures_tidy %>%
+  group_by(subreddit, author) %>%
+  summarize(lau = mean(lcu))
+```
+
+```{r}
+# demo variables
+comment_counts <- lcu_measures_tidy %>%
+  count(subreddit, name = "comment_n")
+
+word_counts <- lcu_measures_tidy %>%
+  group_by(subreddit) %>%
+  summarize(mean_word_n = mean(n_post_words),
+            sum_word_n = sum(n_post_words))
+
+actual_author_counts <- lcu_measures_tidy %>%
+  distinct(subreddit, author) %>%
+  count(subreddit, name = "actual_author_n")
+```
+
+# LSU
+```{r}
+all_subreddit_measures <- lau_measures %>%
+  group_by(subreddit)  %>%
+  summarize(lsu = mean(lau)) %>%
+  left_join(comment_counts) %>%
+  left_join(word_counts) %>%
+  left_join(actual_author_counts) %>%
+  filter(actual_author_n >= 10) %>%
+  left_join(author_time) %>%
+  mutate_at(vars(actual_author_n, mean_word_n, sum_word_n, comment_n), log)
+```
+
+This is what the data look like: 
+```{r}
+head(all_subreddit_measures) %>%
+  kable()
+```
+
+```{r}
+all_subreddit_measures %>% 
+  select(-subreddit)  %>%
+  make_corr_plot()
+
+ggplot(all_subreddit_measures, aes(x = actual_author_n, y = lsu)) +
+  geom_point() +
+  ylab("LSU") +
+  geom_smooth(method= "lm") +
+  xlab("Log number of authors") +
+  theme_classic()
+
+
+ggplot(all_subreddit_measures, aes(x = actual_author_n, y = lsu)) +
+  geom_label(aes(label = subreddit)) +
+  ylab("LSU") +
+  geom_smooth(method= "lm") +
+  xlab("Log number of authors") +
+  theme_classic()
+
+lm(lsu ~ actual_author_n + comment_n + sum_word_n, all_subreddit_measures) %>%
+  summary()
+```
+
+Controling for longevity:
+```{r}
+lm(lsu ~ actual_author_n + comment_n + sum_word_n + author_longevity_mean, all_subreddit_measures) %>%
+  summary()
+
+```
+
+# LCU
+LCU as a function of nth post by a users.
+```{r, fig.height = 8, fig.width = 8}
+mean_lcu <- lcu_measures_tidy %>%
+  nest(-nth_comment, -subreddit) %>%
+  mutate(num_comments = map_dbl(data, nrow)) %>%
+  filter(num_comments > 5) %>% # can't calculate
+  mutate(test = map(data, ~t.test(.x$lcu)),
+         tidied  = map(test, tidy)) %>%
+  unnest(tidied, drop = T) %>%
+  select(subreddit, nth_comment, num_comments,
+         estimate, conf.low, conf.high)  %>%
+  filter(nth_comment <= 50) %>%
+  left_join(actual_author_counts) %>%
+  mutate(subreddit = fct_reorder(subreddit, actual_author_n))
+
+ggplot(mean_lcu, aes(x = nth_comment, y = estimate)) +
+  geom_point() +
+  facet_wrap(~subreddit) +
+  geom_smooth(method = "lm")+
+  theme_classic()
+```
+

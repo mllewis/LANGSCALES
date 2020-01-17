@@ -497,7 +497,7 @@ cor.test(log(entropy_counts$author_n), entropy_counts$mean_document_entropy) %>%
 How similiar is an author nth post to their n + 1 post?
 
 ### Over time
-```{r,fig.height = 6, fig.width = 7}
+```{r, }
 ## Nth similarity
 PAIRWISE_TOPIC_JSD <- "/Volumes/wilbur_the_great/LANGSCALES_subreddit_sample/jsd_nth_post/"
 
@@ -515,7 +515,7 @@ over_individual_time <- nth_post_data  %>%
 
 ```
 
-```{r}
+```{r, fig.height = 6, fig.width = 7}
 over_individual_time_ms <- over_individual_time %>%
   group_by(subreddit, nth_post) %>%
   summarize(mean_JSD = mean(value, na.rm = T),

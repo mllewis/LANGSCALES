@@ -1,0 +1,146 @@
+---
+title: Zipf law and community size
+author: Molly Lewis 
+date: "`r Sys.Date()`"
+output: 
+  html_document:
+    toc: true
+    number_sections: false
+    theme: cerulean
+    toc_float: false
+    code_folding: hide
+---
+  
+  
+```{r setup, include = F}
+# load packages
+library(tidyverse) 
+library(knitr)
+library(here)
+library(anytime)
+library(broom)
+library(data.table)
+library(glue)
+
+
+opts_chunk$set(echo = T, message = F, warning = F, 
+               error = F, tidy = F,  cache = F, fig.height = 10, fig.width = 10)
+``` 
+
+```{r}
+eqfit_lc <- function(df) {
+  mod <- nlsLM(n ~ p *(1/(rank_freq + b)^a),
+              start = list(p = 1, b = 2.7, a = 1), #starting values
+              data = df,
+              control = nls.lm.control(maxiter = 10000))
+  coefs <- coef(mod)
+  data.frame(p = coefs[[1]],
+            b = coefs[[2]],
+            a = coefs[[3]])
+
+}
+
+
+```
+
+```{r}
+LOCAL_PATH <- "/Volumes/wilbur_the_great/LANGSCALES_subreddit_sample/word_counts/"
+
+```
+
+
+```{r}
+
+word_counts <- map_df(list.files(LOCAL_PATH, full.names = T), read_csv)
+
+AUTHOR_COUNTS <-  here("exploratory_analyses/03_systematic_sample/data/subreddit_counts_scores.csv")
+author_count_measures <- read_csv(AUTHOR_COUNTS, col_names = c("subreddit","author_n","word_H","word_mean_n","word_sd","word_total","score_mean",                                                    "score_sd","score_H","comments_n_long","comments_n_all",
+                                                               "posts_n_all","comments_posts_ratio")) %>%
+  filter(author_n > 100)  %>%
+  select(subreddit, author_n, word_total)
+
+
+word_counts_tidy <- word_counts %>%
+  group_by(subreddit) %>%
+  arrange(-n) %>%
+  mutate(rank_freq = 1:n())  %>%
+  arrange(subreddit) %>%
+  right_join(author_count_measures)
+
+
+
+ggplot(word_counts_tidy, aes(x = rank_freq, y = n, group = subreddit, color = log(author_n))) +
+  scale_x_log10() +
+  scale_y_log10() +
+  scale_color_viridis(alpha = .8) +
+  geom_smooth() +
+  theme_classic()
+
+get_power_law_exponent <- function(df, predictor, outcome){
+  all_parameters <- lm(unlist(log(df[,outcome])) ~ unlist(log(df[,predictor]))) %>%
+    tidy() %>%
+    mutate(term = c("intercept", predictor))
+  
+  power_law_exp <- all_parameters[2, "estimate"] %>% 
+    unlist(use.names = F) %>%
+    round(2)
+  
+  power_law_exp
+}
+
+nested_data <- word_counts_tidy %>%
+  group_by(subreddit) %>%
+  #filter(rank_freq < 100000) %>%
+  nest(-subreddit, -author_n, -word_total) %>%
+  mutate(param = map(data, get_power_law_exponent, "rank_freq", "n")) %>%
+  select(-data) %>%
+  unnest() %>%
+  mutate(normalized_author = author_n/word_total)
+
+ggplot(nested_data, aes(x =author_n, y =  param)) +
+  geom_point() +
+  scale_x_log10() +
+  geom_smooth() +
+  theme_classic()
+
+ggplot(nested_data, aes(x = word_total, y =  param)) +
+  geom_point() +
+  scale_x_log10() +
+  geom_smooth() +
+  theme_classic()
+
+ggplot(nested_data %>% filter(normalized_author > .001), aes(x = normalized_author, y =  param)) +
+  geom_point() +
+  scale_x_log10() +
+  geom_smooth(method = "lm") +
+  theme_classic()
+
+
+```
+
+```{r}
+
+model_params <- word_counts_tidy %>%
+  group_by(subreddit) %>%
+  #filter(rank_freq < 100000) %>%
+  nest(-subreddit, -author_n, -word_total) %>%
+  ungroup() %>%
+  mutate(params = map(data, eqfit_lc)) %>%
+  select(-data) %>%
+  unnest() %>%
+  filter(a > .6) %>%
+    mutate(normalized_author = author_n/word_total)
+
+lm(log(p) ~ log(author_n) + log(word_total), data = model_params) %>%
+  summary()
+
+lm(b ~ log(author_n) + log(word_total), data = model_params) %>%
+  summary()
+
+ggplot(model_params, aes(x = word_total, y =  b)) +
+  geom_point() +
+  #scale_y_log10() +
+  geom_smooth(method= "lm") +
+  theme_classic()
+
+```
