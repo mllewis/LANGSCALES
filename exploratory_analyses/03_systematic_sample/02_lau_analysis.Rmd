@@ -163,3 +163,37 @@ ggplot(mean_lcu, aes(x = nth_comment, y = estimate)) +
   theme_classic()
 ```
 
+```{r}
+mean_lcu %>%
+  filter(actual_author_n > 5000) %>%
+  ggplot(aes(x = nth_comment, y = -estimate, 
+           group = subreddit, color = log(actual_author_n))) +
+  scale_color_viridis(alpha = .8) +
+  #geom_point() +
+  #facet_wrap(~subreddit) +
+  geom_smooth(se = F, size = 3)+
+  theme_classic()
+
+mean_lcu_slope <- mean_lcu %>% # can't calculate
+  nest(-subreddit) %>%
+  mutate(test = map(data, ~lm(estimate ~ nth_comment, data = .x)),
+         tidied  = map(test, tidy)) %>%
+  select(-test, -data) %>%
+  unnest() %>%
+  filter(term == "nth_comment") %>%
+  left_join(mean_lcu %>% distinct(subreddit, actual_author_n))
+
+mean_lcu_slope %>%
+  filter(estimate > -.07) %>%
+  filter(estimate < .03) %>%
+
+  ggplot(aes(y = estimate , x = log(actual_author_n))) +
+  geom_label(aes(label = subreddit)) +
+  scale_color_viridis(alpha = .8) +
+  geom_point() +
+  geom_smooth(method = "lm")+
+  theme_classic()
+
+
+```
+
