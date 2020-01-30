@@ -66,8 +66,6 @@ author_count_measures <- read_csv(AUTHOR_COUNTS, col_names = c("subreddit","auth
   left_join(type_counts)
 
 
-
-
 author_counts <- author_count_measures %>%
   select(subreddit, author_n, author_rank)
 ```
@@ -86,11 +84,9 @@ author_counts <- author_count_measures %>%
 More people, more words.
 (there's no relationship between mean/sd post length and author n.)
 
-###  Total words
+###  Types
 
 ```{r}
-
-
 
 
 exp_value <- get_power_law_exponent(author_count_measures, "author_n","word_total")[[1]]
@@ -99,7 +95,7 @@ exp_value <- get_power_law_exponent(author_count_measures, "author_n","word_tota
 label_data <- author_count_measures %>%
   filter(subreddit %in% c("DisneyTravel", "movies", "neoliberal", "JustCause", "FinancialCareers"))
 
-pdf(here("/exploratory_analyses/03_systematic_sample/plots/nwords.pdf"),width = 6, height = 6)
+#pdf(here("/exploratory_analyses/03_systematic_sample/plots/nwords.pdf"),width = 6, height = 6)
 
 ggplot(author_count_measures, aes(x = author_n, y = word_total)) +
   geom_point(size = 4, alpha = .4) +
@@ -116,7 +112,7 @@ ggplot(author_count_measures, aes(x = author_n, y = word_total)) +
   annotate("text", label = paste0("Exp =\n", exp_value ),
            x = 100000, y = 100000, color= "red", size = 5) +
   theme_classic(base_size = 16)
-dev.off()
+#dev.off()
 
 
 ```
@@ -126,8 +122,8 @@ dev.off()
 
 exp_value2 <- get_power_law_exponent(author_count_measures, "author_n","n_word_types")[[3]]
 
-pdf(here("/exploratory_analyses/03_systematic_sample/plots/nword_types.pdf"), 
-    width = 6, height = 6)
+#pdf(here("/exploratory_analyses/03_systematic_sample/plots/nword_types.pdf"), 
+#    width = 6, height = 6)
 
 ggplot(author_count_measures, aes(x = author_n, y = n_word_types)) +
   geom_point(size = 4, alpha = .4) +
@@ -137,14 +133,39 @@ ggplot(author_count_measures, aes(x = author_n, y = n_word_types)) +
   scale_y_log10(name = "N word types (log)",
                 labels = scales::trans_format("log10", scales::math_format(10^.x)),
                 breaks = c(10000, 100000, 1000000)) +
-  geom_abline(slope = 1, linetype = 2) +
+  geom_abline(slope = 1, linetype = 2, intercept = 2.58) +
   scale_x_log10(name = "N authors (log)",
                 labels = scales::trans_format("log10", scales::math_format(10^.x)))+
   annotation_logticks() +
   
   annotate("text", label = paste0("Exp = ", exp_value2), x = 100000, y = 10000, color= "red", size = 5) +
   theme_classic(base_size = 16)
-dev.off()
+#dev.off()
+
+```
+
+## Token to type ratio
+```{r}
+
+author_count_measures_with_token_type <- author_count_measures %>%
+  mutate(token_type_ratio = word_total/n_word_types)
+
+exp_value3 <- get_power_law_exponent(author_count_measures_with_token_type, "author_n","token_type_ratio")[[3]]
+
+ggplot(author_count_measures_with_token_type, aes(x = author_n, y = token_type_ratio))  +
+  geom_point(size = 4, alpha = .4) +
+  geom_smooth(method = "lm")+
+  ggtitle("Number of Word Types vs. Community Size") +
+  #geom_text_repel(data = label_data, aes(label = subreddit), min.segment.length = .2) +
+  scale_y_log10(name = "Token:Type (log)",
+                labels = scales::trans_format("log10", scales::math_format(10^.x))) +
+  geom_abline(slope = 1, linetype = 2, intercept = 2.58) +
+  scale_x_log10(name = "N authors (log)",
+                labels = scales::trans_format("log10", scales::math_format(10^.x)))+
+  annotate("text", label = paste0("Exp = ", exp_value3), x = 100000, y = 10000, color= "red", size = 5) +
+  geom_abline(slope = 1, linetype = 2, intercept = -0.0833) +
+  annotation_logticks() +
+    theme_classic(base_size = 16)
 
 ```
 

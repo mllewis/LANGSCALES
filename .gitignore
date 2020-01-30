@@ -56,3 +56,4 @@ exploratory_analyses/03_systematic_sample/scripts/langscale-e75cff32760e.json
 *.Rproj.user
 
 # Large files
+.Rproj.user
