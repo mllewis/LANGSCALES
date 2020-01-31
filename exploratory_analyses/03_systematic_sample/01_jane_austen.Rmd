@@ -145,10 +145,10 @@ exp_value3 <- get_power_law_exponent(author_count_measures_with_token_type, "aut
 
 ggplot(author_count_measures_with_token_type, aes(x = author_n, y = token_type_ratio))  +
   geom_point(size = 4, alpha = .4) +
-  geom_smooth(method = "lm")+
   ggtitle("Type Token Ratio vs. Community Size") +
   scale_y_log10(name = "Token:Type (log)") +
   geom_abline(slope = 1, linetype = 2, intercept = exp_value3[[4]]) +
+  geom_smooth(method = "lm") +
   scale_x_log10(name = "N authors (log)",
                 labels = scales::trans_format("log10", scales::math_format(10^.x)))+
   annotate("text", label = exp_value3[[3]], x = 100000, y = 30, color= "red", size = 5) +
@@ -161,6 +161,7 @@ ggplot(author_count_measures_with_token_type, aes(x = author_n, y = token_type_r
 ## Jane Austen
 
 N types varying N tokens.Each point is 100 samples with bootstraped CIs (not visible).
+
 ```{r, cache = T}
 JANEAUSTEN <- here("exploratory_analyses/03_systematic_sample/data/jane_austen_tt_samples.csv")
 
@@ -178,6 +179,7 @@ ggplot(mean_types_by_token_length, aes(x = n_tokens, y = n_types, ymin = ci_lowe
   ggtitle("Number of types in randomly sampled tokens \nfrom Jane Austen Corpus") +
   scale_x_log10(name = "N Tokens (log)") +
   scale_y_log10(name = "N Types (log)") +
+  geom_smooth(method = "lm") +
   annotate("text", label = exp_value_jane[[3]], x = 100000, y = 500, color= "red", size = 5) +
   geom_abline(slope = 1, linetype = 2, intercept = exp_value_jane[[4]]) +
   annotation_logticks() +

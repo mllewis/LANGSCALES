@@ -99,7 +99,7 @@ label_data <- author_count_measures %>%
 
 ggplot(author_count_measures, aes(x = author_n, y = word_total)) +
   geom_point(size = 4, alpha = .4) +
-  geom_smooth(method = "lm")+
+  geom_smooth(method = "lm") +
     geom_abline(slope = 1, linetype = 2) +
 
   ggtitle("Number of Words vs. Community Size") +
