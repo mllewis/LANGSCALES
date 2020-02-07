@@ -43,7 +43,7 @@ parallel_wrapper <- function(id, all_subreddits, df, outfile){
   current_subreddit_df <- df %>%
     filter(subreddit == all_subreddits[id])
   current_counts <- current_subreddit_df$data[[1]]$total_counts
-  get_power_law_params(current_subreddit, current_counts, outfile)
+  get_power_law_params(all_subreddits[id], current_counts, outfile)
 }
 
 parLapply(cluster,
