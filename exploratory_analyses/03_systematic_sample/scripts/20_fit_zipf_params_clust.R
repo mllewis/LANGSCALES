@@ -6,9 +6,9 @@ library(parallel)
 INFILE <-  "/data/molly/all_word_counts.csv"
 NCLUSTERS <- 16
 OUTFILE <- "/data/molly/estimated_zipf_params.csv"
-INFILE <-  "/Volumes/wilbur_the_great/LANGSCALES_subreddit_sample/misc/all_word_counts.csv"
-NCLUSTERS <- 4
-OUTFILE <- here("exploratory_analyses/03_systematic_sample/data/estimated_zipf_params.csv")
+#INFILE <-  "/Volumes/wilbur_the_great/LANGSCALES_subreddit_sample/misc/all_word_counts.csv"
+#NCLUSTERS <- 4
+#OUTFILE <- here("exploratory_analyses/03_systematic_sample/data/estimated_zipf_params.csv")
 
 
 all_counts <- read_csv(INFILE) %>%
