@@ -8,7 +8,7 @@ NCLUSTERS <- 30
 OUTFILE <- "/data/molly/estimated_zipf_params.csv"
 
 
-all_counts <- read_csv(LOCAL_PATH) %>%
+all_counts <- read_csv(INFILE) %>%
   select(subreddit, total_counts)
 
 nested_word_counts <- all_counts %>%
