@@ -18,6 +18,7 @@ nested_word_counts <- all_counts %>%
   group_by(subreddit) %>%
   arrange(-total_counts) %>%
   nest() %>%
+  ungroup() %>%
   slice(70)
 
 get_power_law_params <- function(current_subreddit, counts, this_outfile){
