@@ -1,6 +1,7 @@
 # User powerlaw package to estimate parameter
 library(tidyverse)
 library(poweRlaw)
+library(parallel)
 
 
 INFILE <-  "/data/molly/all_word_counts.csv"
