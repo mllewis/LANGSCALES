@@ -1,0 +1,180 @@
+---
+title: Estimating Zipf with Clauset et al. method
+author: Molly Lewis 
+date: "`r Sys.Date()`"
+output: 
+  html_document:
+    toc: false
+    number_sections: false
+    theme: cerulean
+    toc_float: false
+    code_folding: hide
+---
+  
+  
+```{r setup, include = F}
+# load packages
+library(tidyverse) 
+library(knitr)
+library(here)
+library(poweRlaw)
+
+
+
+
+opts_chunk$set(echo = T, message = F, warning = F, 
+               error = F, tidy = F,  cache = F, fig.height = 5, fig.width = 5)
+``` 
+  
+This markdown estimates the Zipf parameter and min x using the method described in Clauset, Shalizi, and Newman (2009) and implemented in [poweRlaw package](https://github.com/csgillespie/poweRlaw).
+
+Let's start by reproducing the example from the paper and package documentation. The following example looks at Zipf's law in Moby Dick. 
+
+The data are a vector of word counts sorted from highest to lowest frequency.
+```{r}
+# load data
+data("moby")
+head(moby)
+```
+
+Fit a discrete power law
+```{r}
+moby_power_law <- displ$new(moby)
+```
+
+Estimate xmin
+```{r}
+xmin_est <- estimate_xmin(moby_power_law)
+xmin_est$xmin
+```
+
+In this case, xmin_est is `r xmin_est$xmin`.
+
+
+Update power law with estimate xmin_value.
+```{r}
+moby_power_law$setXmin(xmin_est)
+```
+
+
+Plot the data - the power law sure *looks* like a good fit to the data. 
+```{r}
+plot(moby_power_law)
+lines(moby_power_law, col=2)
+```
+
+
+Let's do inference - is this actually a power law?
+```{r, cache = T}
+bootstrapped_p_value <- bootstrap_p(moby_power_law)
+bootstrapped_p_value$p
+```
+Large p-values indicate that the data are likely to have come from the model distribution. In this case, the p-value is `r bootstrapped_p_value$p` suggesting the power law is a good fit for the data.
+
+## Our data
+
+Let's do the same as above except with a community from teh reddit data. 
+```{r}
+LOCAL_PATH <-  "/Volumes/wilbur_the_great/LANGSCALES_subreddit_sample/misc/all_word_counts.csv"
+
+all_counts <- read_csv(LOCAL_PATH) %>%
+  select(subreddit, total_counts)
+
+reddit_test <- all_counts %>%
+  filter(subreddit == "morbidquestions") %>%
+  arrange(-total_counts) %>%
+  pull(total_counts)
+
+head(reddit_test)
+```
+
+Again the data are a vector of counts sorted by frequency. 
+
+Fit a discrete power law
+```{r}
+reddit_power_law <- displ$new(reddit_test)
+```
+
+Estimate xmin
+```{r}
+xmin_est_reddit <- estimate_xmin(reddit_power_law)
+xmin_est_reddit$xmin
+```
+
+In this case, xmin_est is `r xmin_est_reddit$xmin`.
+
+
+Update power law with estimate xmin_value.
+```{r}
+reddit_power_law$setXmin(xmin_est_reddit)
+```
+
+
+Plot the data - the power law sure *looks* like a good fit to the data. 
+```{r}
+plot(reddit_power_law)
+lines(reddit_power_law, col=2)
+```
+
+```{r, cache = T}
+bootstrapped_p_value_reddit <- bootstrap_p(reddit_power_law, threads = 5)
+bootstrapped_p_value_reddit$p
+```
+
+
+
+
+```{r include = F, eval = F}
+
+LOCAL_PATH <-  "/Volumes/wilbur_the_great/LANGSCALES_subreddit_sample/word_counts/"
+LOCAL_PATH <- "/Users/mollylewis/Downloads/all_word_counts.csv"
+
+all_counts <- read_csv(LOCAL_PATH) %>%
+  select(subreddit, total_counts)
+
+all_counts_test <- all_counts %>%
+  filter(subreddit == "BattlePaintings") %>%
+  arrange(total_counts) %>%
+  filter(total_counts > 1) %>%
+  pull(total_counts)
+
+
+hist(log(all_counts_test))
+# create discrete power law object
+power_law_object <- displ$new(all_counts_test) # data are vector
+
+# estimate xmin
+est_xmin <- estimate_xmin(power_law_object)
+
+# set xmin to estimated value
+power_law_object$setXmin(est_xmin)
+
+# estimate alpha
+est_alpha <- estimate_pars(power_law_object)
+
+# uncertainty in xmin
+#xmin_uncrtainty <- bootstrap(power_law_object, no_of_sims=1000, threads = 5)
+
+# get p-value on power law model
+p_value_model <- bootstrap_p(power_law_object, no_of_sims=1000, threads = 5)
+
+plot(p_value_model)
+plot(power_law_object)
+
+
+
+power_law_objectM <- displ$new(moby) # data are vector
+hist(log(moby))
+
+# estimate xmin
+est_xminM <- estimate_xmin(power_law_objectM)
+
+# set xmin to estimated value
+power_law_object$setXmin(est_xmin)
+
+# estimate alpha
+est_alpha <- estimate_pars(power_law_object)
+
+
+
+```
