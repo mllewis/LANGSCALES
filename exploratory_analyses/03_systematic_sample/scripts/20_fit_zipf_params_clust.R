@@ -4,7 +4,7 @@ library(poweRlaw)
 library(parallel)
 
 INFILE <-  "/data/molly/all_word_counts.csv"
-NCLUSTERS <- 30
+NCLUSTERS <- 16
 OUTFILE <- "/data/molly/estimated_zipf_params.csv"
 #INFILE <-  "/Volumes/wilbur_the_great/LANGSCALES_subreddit_sample/misc/all_word_counts.csv"
 #NCLUSTERS <- 4
@@ -17,7 +17,8 @@ all_counts <- read_csv(INFILE) %>%
 nested_word_counts <- all_counts %>%
   group_by(subreddit) %>%
   arrange(-total_counts) %>%
-  nest()
+  nest() %>%
+  slice(70)
 
 get_power_law_params <- function(current_subreddit, counts, this_outfile){
   reddit_power_law <- displ$new(counts)
@@ -50,7 +51,4 @@ parLapply(cluster,
           nested_word_counts$subreddit,
           nested_word_counts,
           OUTFILE)
-
-
-
 
