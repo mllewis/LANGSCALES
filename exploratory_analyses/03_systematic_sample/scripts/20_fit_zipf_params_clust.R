@@ -6,9 +6,9 @@ library(parallel)
 INFILE <-  "/data/molly/all_word_counts.csv"
 NCLUSTERS <- 16
 OUTFILE <- "/data/molly/estimated_zipf_params.csv"
-#INFILE <-  "/Volumes/wilbur_the_great/LANGSCALES_subreddit_sample/misc/all_word_counts.csv"
-#NCLUSTERS <- 4
-#OUTFILE <- here("exploratory_analyses/03_systematic_sample/data/estimated_zipf_params.csv")
+INFILE <-  "/Volumes/wilbur_the_great/LANGSCALES_subreddit_sample/misc/all_word_counts.csv"
+NCLUSTERS <- 4
+OUTFILE <- here("exploratory_analyses/03_systematic_sample/data/estimated_zipf_params.csv")
 
 
 all_counts <- read_csv(INFILE) %>%
@@ -25,7 +25,7 @@ get_power_law_params <- function(current_subreddit, counts, this_outfile){
   xmin_est_reddit <- estimate_xmin(reddit_power_law)
   reddit_power_law$setXmin(xmin_est_reddit)
   bootstrapped_p_value_reddit <- bootstrap_p(reddit_power_law,
-                                             threads = 1,
+                                             threads = 2,
                                              xmax = 1000000)
   params <- data.frame(subreddit = current_subreddit,
                        param = reddit_power_law$pars,
@@ -46,7 +46,8 @@ parallel_wrapper <- function(id, all_subreddits, df, outfile){
 }
 
 parLapply(cluster,
-          1:nrow(nested_word_counts),
+          1,
+          #1:nrow(nested_word_counts),
           parallel_wrapper,
           nested_word_counts$subreddit,
           nested_word_counts,
