@@ -17,7 +17,7 @@ nested_word_counts <- all_counts %>%
   arrange(-total_counts) %>%
   nest()
 
-get_power_law_params <- function(current_subreddit, counts, outfile){
+get_power_law_params <- function(current_subreddit, counts, this_outfile){
   reddit_power_law <- displ$new(counts)
   xmin_est_reddit <- estimate_xmin(reddit_power_law)
   reddit_power_law$setXmin(xmin_est_reddit)
@@ -28,7 +28,7 @@ get_power_law_params <- function(current_subreddit, counts, outfile){
                        param = reddit_power_law$pars,
                        xmin =  xmin_est_reddit$xmin,
                        power_law_p = bootstrapped_p_value_reddit$p)
-  write_csv(params, outfile, append = T)
+  write_csv(params, this_outfile, append = T)
 
 }
 
