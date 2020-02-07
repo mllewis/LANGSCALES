@@ -17,9 +17,7 @@ all_counts <- read_csv(INFILE) %>%
 nested_word_counts <- all_counts %>%
   group_by(subreddit) %>%
   arrange(-total_counts) %>%
-  nest() %>%
-  ungroup() %>%
-  slice(70)
+  nest()
 
 get_power_law_params <- function(current_subreddit, counts, this_outfile){
   reddit_power_law <- displ$new(counts)
@@ -47,8 +45,7 @@ parallel_wrapper <- function(id, all_subreddits, df, outfile){
 }
 
 parLapply(cluster,
-          1,
-          #1:nrow(nested_word_counts),
+          1:nrow(nested_word_counts),
           parallel_wrapper,
           nested_word_counts$subreddit,
           nested_word_counts,
