@@ -3,10 +3,12 @@ library(tidyverse)
 library(poweRlaw)
 library(parallel)
 
-
 INFILE <-  "/data/molly/all_word_counts.csv"
 NCLUSTERS <- 30
 OUTFILE <- "/data/molly/estimated_zipf_params.csv"
+#INFILE <-  "/Volumes/wilbur_the_great/LANGSCALES_subreddit_sample/misc/all_word_counts.csv"
+#NCLUSTERS <- 4
+#OUTFILE <- here("exploratory_analyses/03_systematic_sample/data/estimated_zipf_params.csv")
 
 
 all_counts <- read_csv(INFILE) %>%
@@ -35,9 +37,9 @@ get_power_law_params <- function(current_subreddit, counts, this_outfile){
 
 # wrapper function
 cluster <- makeCluster(NCLUSTERS, type = "FORK")
-parallel_wrapper <- function(current_subreddit, df, outfile){
+parallel_wrapper <- function(id, all_subreddits, df, outfile){
   current_subreddit_df <- df %>%
-    filter(subreddit == current_subreddit)
+    filter(subreddit == all_subreddits[id])
   current_counts <- current_subreddit_df$data[[1]]$total_counts
   get_power_law_params(current_subreddit, current_counts, outfile)
 }
