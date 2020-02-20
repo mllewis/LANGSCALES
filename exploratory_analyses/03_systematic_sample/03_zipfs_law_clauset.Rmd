@@ -117,64 +117,7 @@ lines(reddit_power_law, col=2)
 ```
 
 ```{r, cache = T}
-bootstrapped_p_value_reddit <- bootstrap_p(reddit_power_law, threads = 5)
+bootstrapped_p_value_reddit <- bootstrap_p(reddit_power_law, threads = 5, xmax = 1000000)
 bootstrapped_p_value_reddit$p
 ```
 
-
-
-
-```{r include = F, eval = F}
-
-LOCAL_PATH <-  "/Volumes/wilbur_the_great/LANGSCALES_subreddit_sample/word_counts/"
-LOCAL_PATH <- "/Users/mollylewis/Downloads/all_word_counts.csv"
-
-all_counts <- read_csv(LOCAL_PATH) %>%
-  select(subreddit, total_counts)
-
-all_counts_test <- all_counts %>%
-  filter(subreddit == "BattlePaintings") %>%
-  arrange(total_counts) %>%
-  filter(total_counts > 1) %>%
-  pull(total_counts)
-
-
-hist(log(all_counts_test))
-# create discrete power law object
-power_law_object <- displ$new(all_counts_test) # data are vector
-
-# estimate xmin
-est_xmin <- estimate_xmin(power_law_object)
-
-# set xmin to estimated value
-power_law_object$setXmin(est_xmin)
-
-# estimate alpha
-est_alpha <- estimate_pars(power_law_object)
-
-# uncertainty in xmin
-#xmin_uncrtainty <- bootstrap(power_law_object, no_of_sims=1000, threads = 5)
-
-# get p-value on power law model
-p_value_model <- bootstrap_p(power_law_object, no_of_sims=1000, threads = 5)
-
-plot(p_value_model)
-plot(power_law_object)
-
-
-
-power_law_objectM <- displ$new(moby) # data are vector
-hist(log(moby))
-
-# estimate xmin
-est_xminM <- estimate_xmin(power_law_objectM)
-
-# set xmin to estimated value
-power_law_object$setXmin(est_xmin)
-
-# estimate alpha
-est_alpha <- estimate_pars(power_law_object)
-
-
-
-```
